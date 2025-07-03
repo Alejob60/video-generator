@@ -1,0 +1,1 @@
+{"version":3,"file":"azure.module.js","sourceRoot":"","sources":["../../../src/infrastructure/modules/azure.module.ts"],"names":[],"mappings":";;;;;;;;;AACA,2CAAwC;AACxC,uEAAkE;AAM3D,IAAM,WAAW,GAAjB,MAAM,WAAW;CAAG,CAAA;AAAd,kCAAW;sBAAX,WAAW;IAJvB,IAAA,eAAM,EAAC;QACN,SAAS,EAAE,CAAC,qCAAgB,CAAC;QAC7B,OAAO,EAAE,CAAC,qCAAgB,CAAC;KAC5B,CAAC;GACW,WAAW,CAAG"}

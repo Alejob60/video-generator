@@ -1,0 +1,49 @@
+"use strict";
+var __decorate = (this && this.__decorate) || function (decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for (var i = decorators.length - 1; i >= 0; i--) if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+};
+var __metadata = (this && this.__metadata) || function (k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+};
+var __param = (this && this.__param) || function (paramIndex, decorator) {
+    return function (target, key) { decorator(target, key, paramIndex); }
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SoraController = void 0;
+const common_1 = require("@nestjs/common");
+const sora_service_1 = require("../../infrastructure/services/sora.service");
+const generate_video_dto_1 = require("../dto/generate-video.dto");
+let SoraController = class SoraController {
+    constructor(soraService) {
+        this.soraService = soraService;
+    }
+    async generate(dto) {
+        if (!dto.useSora) {
+            throw new common_1.HttpException('⚠️ Este endpoint solo funciona si useSora es true.', common_1.HttpStatus.BAD_REQUEST);
+        }
+        const duration = dto.duration ?? 10;
+        const result = await this.soraService.generateAndUploadVideo(dto.prompt, duration);
+        return {
+            success: true,
+            message: '✅ Video generado y subido exitosamente con Sora',
+            jobId: result.jobId,
+            blobUrl: result.blobUrl,
+        };
+    }
+};
+exports.SoraController = SoraController;
+__decorate([
+    (0, common_1.Post)('generate'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [generate_video_dto_1.GenerateVideoDto]),
+    __metadata("design:returntype", Promise)
+], SoraController.prototype, "generate", null);
+exports.SoraController = SoraController = __decorate([
+    (0, common_1.Controller)('videos'),
+    __metadata("design:paramtypes", [sora_service_1.SoraService])
+], SoraController);
+//# sourceMappingURL=sora.controller.js.map

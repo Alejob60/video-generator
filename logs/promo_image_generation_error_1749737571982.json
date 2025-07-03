@@ -1,0 +1,4 @@
+{
+  "error": "Error: ffmpeg exited with code 3221225477: Fontconfig error: Cannot load default config file: No such file: (null)\n",
+  "stack": "Error: ffmpeg exited with code 3221225477: Fontconfig error: Cannot load default config file: No such file: (null)\n\n    at ChildProcess.<anonymous> (C:\\Users\\aleja\\OneDrive\\Documentos\\ColombiaTIC\\RealCulture AI\\video-generator\\node_modules\\fluent-ffmpeg\\lib\\processor.js:180:22)\n    at ChildProcess.emit (node:events:518:28)\n    at ChildProcess._handle.onexit (node:internal/child_process:293:12)"
+}

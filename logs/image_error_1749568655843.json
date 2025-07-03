@@ -1,0 +1,29 @@
+{
+  "message": "Request failed with status code 401",
+  "code": "ERR_BAD_REQUEST",
+  "stack": "AxiosError: Request failed with status code 401\n    at settle (C:\\Users\\aleja\\OneDrive\\Documentos\\ColombiaTIC\\RealCulture AI\\video-generator\\node_modules\\axios\\lib\\core\\settle.js:19:12)\n    at IncomingMessage.handleStreamEnd (C:\\Users\\aleja\\OneDrive\\Documentos\\ColombiaTIC\\RealCulture AI\\video-generator\\node_modules\\axios\\lib\\adapters\\http.js:599:11)\n    at IncomingMessage.emit (node:events:530:35)\n    at endReadableNT (node:internal/streams/readable:1698:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)\n    at Axios.request (C:\\Users\\aleja\\OneDrive\\Documentos\\ColombiaTIC\\RealCulture AI\\video-generator\\node_modules\\axios\\lib\\core\\Axios.js:45:41)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async PromoImageService.generateImageFromPrompt (C:\\Users\\aleja\\OneDrive\\Documentos\\ColombiaTIC\\RealCulture AI\\video-generator\\src\\infrastructure\\services\\promo-image.service.ts:79:24)\n    at async PromoImageService.generateImageWithText (C:\\Users\\aleja\\OneDrive\\Documentos\\ColombiaTIC\\RealCulture AI\\video-generator\\src\\infrastructure\\services\\promo-image.service.ts:52:41)\n    at async PromoImageController.generatePromoImage (C:\\Users\\aleja\\OneDrive\\Documentos\\ColombiaTIC\\RealCulture AI\\video-generator\\src\\interfaces\\controllers\\promo-image.controller.ts:47:26)",
+  "url": "https://labsc-m9j5kbl9-eastus2.cognitiveservices.azure.com/openai/deployments/REalcultureImage/images/generations?api-version=2024-02-01",
+  "config": {
+    "headers": {
+      "Accept": "application/json, text/plain, */*",
+      "Content-Type": "application/json",
+      "api-key": "8HHGgjsvAF1Glfmya00IITFdcG4kaWcrbPILBiWfBtBjihc92xprJQQJ99BFACfhMk5XJ3w3AAAAACOGGiPq",
+      "User-Agent": "axios/1.9.0",
+      "Content-Length": "86",
+      "Accept-Encoding": "gzip, compress, deflate, br"
+    },
+    "method": "post",
+    "data": "{\"prompt\":\"A cyberpunk AI influencer promoting eco products\",\"n\":1,\"size\":\"1024x1024\"}"
+  },
+  "response": {
+    "status": 401,
+    "statusText": "PermissionDenied",
+    "data": {
+      "error": {
+        "code": "401",
+        "message": "Access denied due to invalid subscription key or wrong API endpoint. Make sure to provide a valid key for an active subscription and use a correct regional API endpoint for your resource."
+      }
+    }
+  },
+  "timestamp": "2025-06-10T15:17:35.843Z"
+}
