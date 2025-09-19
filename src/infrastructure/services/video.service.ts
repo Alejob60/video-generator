@@ -1,6 +1,5 @@
 import { Injectable, Logger, Inject } from '@nestjs/common';
 import axios from 'axios';
-import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs';
 import path from 'path';
 import { VideoGenerationOptions } from '../../types/video-generation-options';
@@ -22,13 +21,12 @@ export class VideoService {
     private readonly azureBlobService: AzureBlobService,
   ) {}
 
-  private buildPath(type: 'video' | 'audio' | 'subtitles' | 'final', timestamp: number): string {
+  private buildPath(type: 'video' | 'audio' | 'subtitles', timestamp: number): string {
     const base = path.resolve(__dirname, '../../../public');
     return {
       video: `${base}/videos/sora_video_${timestamp}.mp4`,
       audio: `${base}/audio/audio_${timestamp}.mp3`,
       subtitles: `${base}/subtitles/${timestamp}.srt`,
-      final: `${base}/videos/final_${timestamp}.mp4`,
     }[type];
   }
 
@@ -67,17 +65,21 @@ export class VideoService {
   }
 
   async processGeneratedAssets(jobId: string, timestamp: number, metadata: any): Promise<{
-    video_url: string;
-    file_name: string;
-    prompt: string;
-    timestamp: number;
+    success: boolean;
+    message: string;
+    data: {
+      prompt: string;
+      timestamp: number;
+      video_url: string;
+      audio_url: string | null;
+      subtitles_url: string | null;
+    };
   }> {
     const statusUrl = `${this.soraEndpoint}/openai/v1/video/generations/jobs/${jobId}?api-version=preview`;
     let status = '';
     let generationId = '';
     let attempts = 0;
 
-    // ⏳ Esperar que el job finalice correctamente
     while (status !== 'succeeded' && status !== 'failed' && attempts < 30) {
       try {
         const response = await axios.get(statusUrl, {
@@ -104,44 +106,40 @@ export class VideoService {
     const videoUrl = `${this.soraEndpoint}/openai/v1/video/generations/${generationId}/content/video?api-version=preview`;
     await this.waitForUrlAvailable(videoUrl);
 
-    // 🧱 Rutas locales para los archivos
     const videoPath = this.buildPath('video', timestamp);
     const audioPath = this.buildPath('audio', timestamp);
     const subtitlePath = this.buildPath('subtitles', timestamp);
-    const finalPath = this.buildPath('final', timestamp);
 
     await this.downloadFile(videoUrl, videoPath);
 
-    const shouldNarrate = metadata.narration === true;
-    const shouldSubtitle = metadata.subtitles === true;
+    let audio_blob_url: string | null = null;
+    let subtitles_blob_url: string | null = null;
 
-    // 🎙️ Generar audio si se solicita narración
-    if (shouldNarrate) {
+    if (metadata.narration === true) {
       this.logger.log('🎙️ Generando narración...');
       await this.downloadTTS(metadata.script, audioPath);
+      audio_blob_url = await this.azureBlobService.uploadFile(audioPath, 'audio');
     }
 
-    // 📝 Generar subtítulos si se solicita
-    if (shouldSubtitle) {
+    if (metadata.subtitles === true) {
       this.logger.log('📝 Generando subtítulos...');
       this.generateSubtitles(metadata.script, subtitlePath);
+      subtitles_blob_url = await this.azureBlobService.uploadFile(subtitlePath, 'subtitles');
     }
 
-    // 🎞️ Combinar si hay audio o subtítulos
-    const finalVideoPath = (shouldNarrate || shouldSubtitle)
-      ? (await this.combineWithFFmpeg(videoPath, shouldNarrate ? audioPath : undefined, shouldSubtitle ? subtitlePath : undefined, finalPath), finalPath)
-      : videoPath;
+    const video_blob_url = await this.azureBlobService.uploadFile(videoPath, 'video');
+    this.logger.log(`📤 Video subido: ${video_blob_url}`);
 
-    // ☁️ Subir a Azure Blob Storage
-    const blobUrl = await this.azureBlobService.uploadFile(finalVideoPath, 'video');
-    this.logger.log(`📤 Video subido: ${blobUrl}`);
-
-    // 📦 Devolver al backend principal
     return {
-      video_url: blobUrl,
-      file_name: path.basename(finalVideoPath),
-      prompt: metadata.script,
-      timestamp,
+      success: true,
+      message: '🎬 Medios generados exitosamente',
+      data: {
+        prompt: metadata.script,
+        timestamp,
+        video_url: video_blob_url,
+        audio_url: audio_blob_url,
+        subtitles_url: subtitles_blob_url,
+      },
     };
   }
 
@@ -220,32 +218,6 @@ export class VideoService {
     }).join('\n');
 
     fs.writeFileSync(subtitlePath, srt);
-  }
-
-  private combineWithFFmpeg(
-    videoPath: string,
-    audioPath?: string,
-    subtitlePath?: string,
-    outputPath?: string,
-  ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      let command = ffmpeg(videoPath);
-      if (audioPath) command = command.input(audioPath);
-      if (subtitlePath) command = command.input(subtitlePath);
-
-      const options = ['-c:v copy'];
-      if (audioPath) options.push('-c:a aac');
-      if (subtitlePath) options.push(`-vf subtitles=${subtitlePath}`);
-
-      command
-        .outputOptions(options)
-        .on('end', () => resolve())
-        .on('error', err => {
-          this.logger.error(`❌ Error en FFmpeg: ${safeErrorMessage(err)}`);
-          reject(err);
-        })
-        .save(outputPath || videoPath);
-    });
   }
 
   async getVideoJobStatus(jobId: string): Promise<{ status: string; generationId?: string }> {

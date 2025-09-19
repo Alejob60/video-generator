@@ -68,8 +68,8 @@ let AudioGeneratorService = AudioGeneratorService_1 = class AudioGeneratorServic
             const script = await this.llmService.generateNarrativeScript(prompt, duration);
             this.logger.log(`📝 Libreto generado: ${script}`);
             this.logger.log(`🎙️ Generando audio TTS...`);
-            const ttsResult = await this.ttsService.generateAudioFromPrompt(script);
-            const audioPath = ttsResult.audioPath;
+            const ttsResult = await this.ttsService.generateAudioFromPrompt(script.script);
+            const audioPath = ttsResult.filename;
             const fileName = path.basename(audioPath);
             const blobName = `audio/${fileName}`;
             this.logger.log(`☁️ Subiendo audio a Azure Blob: ${blobName}`);
@@ -96,7 +96,7 @@ let AudioGeneratorService = AudioGeneratorService_1 = class AudioGeneratorServic
             this.logger.log(`✅ Notificación enviada al backend principal`);
             fs.unlinkSync(audioPath);
             return {
-                script,
+                script: script.script,
                 audioUrl,
                 duration: ttsResult.duration,
             };

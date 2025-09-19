@@ -20,7 +20,7 @@ let GenerateAudioUseCase = class GenerateAudioUseCase {
     }
     async execute(prompt, duration = 30) {
         const script = await this.llmService.generateNarrativeScript(prompt, duration);
-        return this.audioGenerator.generateFromText(script);
+        return this.audioGenerator.generateFromText(script.script);
     }
 };
 exports.GenerateAudioUseCase = GenerateAudioUseCase;

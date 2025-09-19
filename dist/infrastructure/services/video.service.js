@@ -19,7 +19,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.VideoService = void 0;
 const common_1 = require("@nestjs/common");
 const axios_1 = __importDefault(require("axios"));
-const fluent_ffmpeg_1 = __importDefault(require("fluent-ffmpeg"));
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const service_bus_service_1 = require("./service-bus.service");
@@ -42,7 +41,6 @@ let VideoService = VideoService_1 = class VideoService {
             video: `${base}/videos/sora_video_${timestamp}.mp4`,
             audio: `${base}/audio/audio_${timestamp}.mp3`,
             subtitles: `${base}/subtitles/${timestamp}.srt`,
-            final: `${base}/videos/final_${timestamp}.mp4`,
         }[type];
     }
     async generateFullVideo(options) {
@@ -100,28 +98,31 @@ let VideoService = VideoService_1 = class VideoService {
         const videoPath = this.buildPath('video', timestamp);
         const audioPath = this.buildPath('audio', timestamp);
         const subtitlePath = this.buildPath('subtitles', timestamp);
-        const finalPath = this.buildPath('final', timestamp);
         await this.downloadFile(videoUrl, videoPath);
-        const shouldNarrate = metadata.narration === true;
-        const shouldSubtitle = metadata.subtitles === true;
-        if (shouldNarrate) {
+        let audio_blob_url = null;
+        let subtitles_blob_url = null;
+        if (metadata.narration === true) {
             this.logger.log('🎙️ Generando narración...');
             await this.downloadTTS(metadata.script, audioPath);
+            audio_blob_url = await this.azureBlobService.uploadFile(audioPath, 'audio');
         }
-        if (shouldSubtitle) {
+        if (metadata.subtitles === true) {
             this.logger.log('📝 Generando subtítulos...');
             this.generateSubtitles(metadata.script, subtitlePath);
+            subtitles_blob_url = await this.azureBlobService.uploadFile(subtitlePath, 'subtitles');
         }
-        const finalVideoPath = (shouldNarrate || shouldSubtitle)
-            ? (await this.combineWithFFmpeg(videoPath, shouldNarrate ? audioPath : undefined, shouldSubtitle ? subtitlePath : undefined, finalPath), finalPath)
-            : videoPath;
-        const blobUrl = await this.azureBlobService.uploadFile(finalVideoPath, 'video');
-        this.logger.log(`📤 Video subido: ${blobUrl}`);
+        const video_blob_url = await this.azureBlobService.uploadFile(videoPath, 'video');
+        this.logger.log(`📤 Video subido: ${video_blob_url}`);
         return {
-            video_url: blobUrl,
-            file_name: path_1.default.basename(finalVideoPath),
-            prompt: metadata.script,
-            timestamp,
+            success: true,
+            message: '🎬 Medios generados exitosamente',
+            data: {
+                prompt: metadata.script,
+                timestamp,
+                video_url: video_blob_url,
+                audio_url: audio_blob_url,
+                subtitles_url: subtitles_blob_url,
+            },
         };
     }
     async waitForUrlAvailable(url, maxAttempts = 30, delayMs = 5000) {
@@ -185,28 +186,6 @@ let VideoService = VideoService_1 = class VideoService {
             return `${i + 1}\n${start} --> ${end}\n${line}\n`;
         }).join('\n');
         fs_1.default.writeFileSync(subtitlePath, srt);
-    }
-    combineWithFFmpeg(videoPath, audioPath, subtitlePath, outputPath) {
-        return new Promise((resolve, reject) => {
-            let command = (0, fluent_ffmpeg_1.default)(videoPath);
-            if (audioPath)
-                command = command.input(audioPath);
-            if (subtitlePath)
-                command = command.input(subtitlePath);
-            const options = ['-c:v copy'];
-            if (audioPath)
-                options.push('-c:a aac');
-            if (subtitlePath)
-                options.push(`-vf subtitles=${subtitlePath}`);
-            command
-                .outputOptions(options)
-                .on('end', () => resolve())
-                .on('error', err => {
-                this.logger.error(`❌ Error en FFmpeg: ${(0, error_util_1.safeErrorMessage)(err)}`);
-                reject(err);
-            })
-                .save(outputPath || videoPath);
-        });
     }
     async getVideoJobStatus(jobId) {
         const statusUrl = `${this.soraEndpoint}/openai/v1/video/generations/jobs/${jobId}?api-version=preview`;

@@ -12,6 +12,6 @@ export class GenerateAudioUseCase {
 
   async execute(prompt: string, duration: number = 30): Promise<AudioResult> {
     const script = await this.llmService.generateNarrativeScript(prompt, duration);
-    return this.audioGenerator.generateFromText(script);
+    return this.audioGenerator.generateFromText(script.script);
   }
 }

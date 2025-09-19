@@ -1,4 +1,3 @@
-// src/infrastructure/services/azure-tts.service.ts
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import * as fs from 'fs';
@@ -6,75 +5,97 @@ import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { getAudioDurationInSeconds } from 'get-audio-duration';
 import { LLMService } from './llm.service';
+import { AzureBlobService } from './azure-blob.service';
 
 @Injectable()
 export class AzureTTSService {
   private readonly logger = new Logger(AzureTTSService.name);
+  private readonly apiUrl = `${process.env.AZURE_TTS_ENDPOINT}/openai/deployments/${process.env.AZURE_TTS_DEPLOYMENT}/audio/speech?api-version=${process.env.AZURE_TTS_API_VERSION}`;
+  private readonly apiKey = process.env.AZURE_TTS_KEY!;
+  private readonly voice = process.env.AZURE_TTS_VOICE || 'nova';
+  private readonly model = 'gpt-4o-mini-tts';
 
-  private readonly apiUrl =
-    'https://labsc-m9j5kbl9-eastus2.cognitiveservices.azure.com/openai/deployments/gpt-4o-mini-tts/audio/speech?api-version=2025-03-01-preview';
+  constructor(
+    private readonly llmService: LLMService,
+    private readonly blobService: AzureBlobService
+  ) {}
 
-  private readonly apiKey: string = process.env.AZURE_TTS_KEY!;
-  private readonly voice: string = process.env.AZURE_TTS_VOICE || 'nova';
-  private readonly model: string = 'gpt-4o-mini-tts';
-
-  constructor(private readonly llmService: LLMService) {const duration = 30; // duración por defecto si no se especifica
-}
-
- async generateAudioFromPrompt(prompt: string): Promise<{
+  async generateAudioFromPrompt(prompt: string): Promise<{
     script: string;
-    audioPath: string;
-    fileName: string;
     duration: number;
+    filename: string;
+    blobUrl: string;
   }> {
-    this.logger.log(`🧠 Generando libreto desde prompt: "${prompt}"`);
-
-    const duration = 30; // o puedes recibirlo como parámetro si prefieres
-    const script = await this.llmService.generateNarrativeScript(prompt, duration);
-
-    const audioBuffer = await this.synthesizeAudio(script);
-
+    const { script } = await this.llmService.generateNarrativeScript(prompt, 30);
     const filename = `audio-${uuidv4()}.mp3`;
-    const audioPath = path.join(__dirname, '../../../public/audio', filename);
+    const localDir = path.join(__dirname, '../../../public/audio');
+    const localPath = path.join(localDir, filename);
 
-    fs.writeFileSync(audioPath, audioBuffer);
-    this.logger.log(`✅ Audio guardado localmente en: ${audioPath}`);
-
-    const finalDuration = await getAudioDurationInSeconds(audioPath);
-
-    return {
-      script,
-      audioPath,
-      fileName: filename,
-      duration: finalDuration,
-    };
-  }
-
-
-  private async synthesizeAudio(text: string): Promise<Buffer> {
     try {
-      this.logger.log(`🎤 Generando audio con voz: ${this.voice}`);
+      if (!fs.existsSync(localDir)) fs.mkdirSync(localDir, { recursive: true });
+
+      this.logger.log(`📡 Enviando texto a Azure TTS...`);
 
       const payload = {
         model: this.model,
-        input: text,
+        input: script,
         voice: this.voice,
       };
 
-      const headers = {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      };
-
       const response = await axios.post(this.apiUrl, payload, {
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
         responseType: 'arraybuffer',
       });
 
-      return response.data;
+      if (!response.data || response.data.length < 1000) {
+        this.logger.error(`❌ Respuesta inválida de Azure TTS`);
+        throw new Error('No se recibió contenido de audio válido');
+      }
+
+      fs.writeFileSync(localPath, response.data);
+      const duration = await getAudioDurationInSeconds(localPath);
+
+      this.logger.log(`☁️ Subiendo a Azure Blob Storage...`);
+      await this.blobService.uploadFileToBlob(localPath, `audio/${filename}`, 'audio/mpeg');
+      const blobUrl = await this.blobService.generateSasUrl(`audio/${filename}`, 86400); // 24h
+
+      fs.unlinkSync(localPath);
+
+      this.logger.log(`✅ Audio generado y subido correctamente`);
+      return {
+        script,
+        duration,
+        filename,
+        blobUrl,
+      };
     } catch (error: any) {
-      this.logger.error(`❌ Error generando audio: ${error?.response?.status} - ${error?.response?.data}`);
-      throw new Error('Error al generar audio');
+      this.logger.error(`❌ Error al generar audio con Azure TTS`);
+      this.logger.error(error?.message || 'Error desconocido');
+      if (fs.existsSync(localPath)) fs.unlinkSync(localPath);
+
+      if (
+        error.code === 'ECONNREFUSED' ||
+        error.message?.includes('Resource not found') ||
+        error.message?.includes('ENOTFOUND')
+      ) {
+        this.logger.warn('⚠️ Reinicio simulado por error crítico...');
+        this.triggerSelfRestart();
+      }
+
+      throw new Error('Error generando audio, pero el sistema sigue funcionando');
+    }
+  }
+
+  private triggerSelfRestart() {
+    const isAzure = process.env.WEBSITE_INSTANCE_ID;
+    if (isAzure) {
+      this.logger.warn('🔄 Reinicio simulado en Azure: finalizando proceso actual...');
+      setTimeout(() => process.exit(1), 3000);
+    } else {
+      this.logger.warn('🔁 Reinicio local omitido (no es entorno Azure)');
     }
   }
 }

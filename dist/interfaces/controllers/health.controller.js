@@ -11,14 +11,16 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
+var HealthController_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HealthController = void 0;
 const common_1 = require("@nestjs/common");
 const axios_1 = __importDefault(require("axios"));
 const config_1 = require("@nestjs/config");
-let HealthController = class HealthController {
+let HealthController = HealthController_1 = class HealthController {
     constructor(configService) {
         this.configService = configService;
+        this.logger = new common_1.Logger(HealthController_1.name);
     }
     getStatus() {
         return {
@@ -52,32 +54,56 @@ let HealthController = class HealthController {
                 });
                 results.llm = 'ok';
             }
+        }
+        catch (e) {
+            this.logger.warn('❌ LLM check failed');
+        }
+        try {
             const ttsUrl = this.configService.get('AZURE_TTS_ENDPOINT');
             const ttsKey = this.configService.get('AZURE_TTS_KEY');
             if (ttsUrl && ttsKey) {
-                await axios_1.default.post(`${ttsUrl}/audio/speech?api-version=2025-03-01-preview`, `<speak><voice name="nova">ping</voice></speak>`, {
+                await axios_1.default.post(`${ttsUrl}?api-version=2025-03-01-preview`, {
+                    model: 'gpt-4o-mini-tts',
+                    input: 'ping',
+                    voice: 'nova',
+                }, {
                     headers: {
-                        'Content-Type': 'application/ssml+xml',
-                        'Ocp-Apim-Subscription-Key': ttsKey,
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${ttsKey}`,
                     },
                 });
                 results.tts = 'ok';
             }
+        }
+        catch (e) {
+            this.logger.warn('❌ TTS check failed');
+        }
+        try {
             const soraUrl = this.configService.get('SORA_VIDEO_URL');
             if (soraUrl) {
                 await axios_1.default.post(`${soraUrl}/video/generate`, {
                     prompt: 'test video',
-                    n_seconds: 5,
-                    height: 128,
-                    width: 128,
+                    n_seconds: 3,
+                    height: 64,
+                    width: 64,
                     n_variants: 1,
                 });
                 results.sora = 'ok';
             }
+        }
+        catch (e) {
+            this.logger.warn('❌ Sora check failed');
+        }
+        try {
             const blobKey = this.configService.get('AZURE_STORAGE_KEY');
             if (blobKey) {
                 results.blob = 'ok';
             }
+        }
+        catch (e) {
+            this.logger.warn('❌ Blob check failed');
+        }
+        try {
             const backend = this.configService.get('MAIN_BACKEND_URL');
             if (backend) {
                 const ping = await axios_1.default.get(`${backend}/ping`);
@@ -85,10 +111,12 @@ let HealthController = class HealthController {
                     results.backend = 'ok';
             }
         }
-        catch (error) {
+        catch (e) {
+            this.logger.warn('❌ Backend check failed');
         }
+        const status = Object.values(results).every((r) => r === 'ok') ? 'ok' : 'degraded';
         return {
-            status: Object.values(results).every((r) => r === 'ok') ? 'ok' : 'degraded',
+            status,
             services: results,
             timestamp: new Date().toISOString(),
         };
@@ -107,7 +135,7 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], HealthController.prototype, "getHealth", null);
-exports.HealthController = HealthController = __decorate([
+exports.HealthController = HealthController = HealthController_1 = __decorate([
     (0, common_1.Controller)(),
     __metadata("design:paramtypes", [config_1.ConfigService])
 ], HealthController);

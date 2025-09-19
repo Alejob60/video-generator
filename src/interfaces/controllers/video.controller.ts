@@ -1,4 +1,3 @@
-// src/interfaces/controllers/video.controller.ts
 import {
   Controller,
   Post,
@@ -14,8 +13,6 @@ import { SoraVideoClientService } from '../../infrastructure/services/sora-video
 import { AzureTTSService } from '../../infrastructure/services/azure-tts.service';
 import { AzureBlobService } from '../../infrastructure/services/azure-blob.service';
 import { GenerateVideoDto } from '../dto/generate-video.dto';
-import * as fs from 'fs';
-import axios from 'axios';
 
 @Controller('videos')
 export class VideoController {
@@ -30,83 +27,97 @@ export class VideoController {
 
   @Post('generate')
   async generateVideo(@Body() dto: GenerateVideoDto, @Req() req: Request) {
-    const userId = (req as any).user?.id || 'anon';
-    const duration = dto.duration || 10;
+    const userId = (req as any)?.user?.id || 'admin';
+    const result: any = {
+      userId,
+      timestamp: Date.now(),
+      videoUrl: '',
+    };
 
-    if (!dto.prompt) {
-      throw new HttpException('Prompt requerido', HttpStatus.BAD_REQUEST);
+    // 🧪 Validaciones
+    if (!dto.prompt || typeof dto.prompt !== 'string' || dto.prompt.trim().length < 10) {
+      this.logger.warn(`[${userId}] ❌ Prompt inválido: "${dto.prompt}"`);
+      throw new HttpException('El prompt debe tener al menos 10 caracteres.', HttpStatus.BAD_REQUEST);
     }
 
+    const duration = 20;
+    const plan = typeof dto.plan === 'string' && ['free', 'creator', 'pro'].includes(dto.plan) ? dto.plan : 'free';
+    result.duration = duration;
+    result.plan = plan;
+
     try {
-      this.logger.log(`🎬 [${userId}] Iniciando generación de video...`);
+      this.logger.log(`🎬 [${userId}] Iniciando generación con duración=${duration}s y plan=${plan}`);
 
-      // 1️⃣ Mejorar el prompt
-      const improvedPrompt = await this.llmService.improveVideoPrompt(dto.prompt);
-      this.logger.log(`✨ Prompt mejorado:\n${improvedPrompt}`);
+      // 🔄 Check disponibilidad de Sora
+      const soraDisponible = await this.soraClient.isHealthy();
+      if (!soraDisponible) {
+        this.logger.warn('🚫 Sora no disponible');
+        result.error = 'Sora offline';
+        return {
+          success: false,
+          message: 'Sora offline',
+          result,
+        };
+      }
 
-      // 2️⃣ Solicitar generación de video a microservicio Sora
-      const soraResponse = await this.soraClient.requestVideo(improvedPrompt, duration);
+      // ✨ Mejorar prompt
+      this.logger.log('🧠 Solicitando mejora del prompt...');
+      const improvedPromptObject = await this.llmService.improveVideoPrompt(dto.prompt.trim());
+      const improvedPromptString = `${improvedPromptObject.scene}. Characters: ${improvedPromptObject.characters.join(', ')}. Camera: ${improvedPromptObject.camera}. Lighting: ${improvedPromptObject.lighting}. Style: ${improvedPromptObject.style}. Focus: ${improvedPromptObject.interactionFocus}`;
+      result.prompt = improvedPromptObject;
+
+      // 📤 Enviar a Sora
+      this.logger.debug(`📤 Enviando solicitud a Sora con payload: ${JSON.stringify({ prompt: improvedPromptString, duration, plan })}`);
+      const soraResponse = await this.soraClient.requestVideo(improvedPromptString, duration);
       const { video_url, job_id, generation_id, file_name } = soraResponse;
 
-      if (!video_url || !job_id || !generation_id || !file_name) {
-        this.logger.error(`❌ Respuesta incompleta desde sora-video:\n${JSON.stringify(soraResponse)}`);
-        throw new HttpException('Error en microservicio Sora', HttpStatus.BAD_GATEWAY);
+      if (!video_url || !file_name) {
+        this.logger.warn('⚠️ Respuesta incompleta de Sora');
+        result.error = 'Video no generado correctamente.';
+        return {
+          success: false,
+          message: 'Fallo en la generación del video',
+          result,
+        };
       }
 
-      this.logger.log(`🎥 Video generado exitosamente: ${video_url}`);
+      result.videoUrl = video_url;
+      result.fileName = file_name;
+      result.soraJobId = job_id;
+      result.generationId = generation_id;
 
-      // 🧩 Armar respuesta inicial
-      const result: any = {
-        prompt: improvedPrompt,
-        videoUrl: video_url,
-        fileName: file_name,
-        soraJobId: job_id,
-        generationId: generation_id,
-        duration,
-        userId,
-        timestamp: Date.now(),
-      };
-
-      // 3️⃣ Narración (si el usuario la solicitó)
+      // 🎙️ Narración (opcional)
       if (dto.useVoice) {
-        this.logger.log('🎙️ Generando narración con TTS...');
-        const audioResult = await this.ttsService.generateAudioFromPrompt(improvedPrompt);
-        const blobName = `audio/${audioResult.fileName}`;
-
-        await this.azureBlobService.uploadFileToBlob(audioResult.audioPath, blobName, 'audio/mpeg');
-        const audioUrl = await this.azureBlobService.generateSasUrl(blobName, 86400);
-        fs.unlinkSync(audioResult.audioPath);
-
-        result.audioUrl = audioUrl;
-        result.script = audioResult.script;
+        try {
+          this.logger.log('🎤 Generando narración TTS...');
+          const audioResult = await this.ttsService.generateAudioFromPrompt(improvedPromptString);
+          result.audioUrl = audioResult.blobUrl;
+          result.script = audioResult.script;
+        } catch (err) {
+          this.logger.warn(`⚠️ Error en TTS: ${err instanceof Error ? err.message : err}`);
+          result.audioError = 'No se pudo generar el audio';
+        }
       }
 
-      // 4️⃣ Subtítulos (pendiente - versión 2)
-      if (dto.useSubtitles) {
-        this.logger.log('📝 Subtítulos solicitados (pendiente generación en versión 2)');
-        result.subtitles = 'pendiente';
-      }
+      // 📝 Subtítulos y música (placeholders)
+      if (dto.useSubtitles) result.subtitles = 'pendiente';
+      if (dto.useMusic) result.music = 'pendiente';
 
-      // 5️⃣ Música (pendiente - versión 2)
-      if (dto.useMusic) {
-        this.logger.log('🎵 Música solicitada (pendiente generación en versión 2)');
-        result.music = 'pendiente';
-      }
-
-      // ✅ Respuesta final
+      this.logger.log('✅ Video generado correctamente');
       return {
         success: true,
-        message: 'Video generado correctamente',
+        message: 'Medios generados exitosamente',
         result,
       };
 
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        this.logger.error('❌ Axios error:', error.response?.data || error.message);
-      } else {
-        this.logger.error('❌ Error inesperado:', error);
-      }
-      throw new HttpException('Error al generar video', HttpStatus.INTERNAL_SERVER_ERROR);
+    } catch (err) {
+      this.logger.error(`❌ Error en flujo general: ${err instanceof Error ? err.message : err}`);
+      result.error = 'Fallo inesperado al generar video';
+      return {
+        success: false,
+        message: 'Fallo interno en la generación del video',
+        result,
+      };
     }
   }
 }

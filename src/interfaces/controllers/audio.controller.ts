@@ -1,4 +1,3 @@
-// src/interfaces/controllers/audio.controller.ts
 import {
   Controller,
   Post,
@@ -10,20 +9,13 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { AzureTTSService } from '../../infrastructure/services/azure-tts.service';
-import { AzureBlobService } from '../../infrastructure/services/azure-blob.service';
-import { LLMService } from '../../infrastructure/services/llm.service';
 import { GenerateAudioDto } from '../dto/generate-audio.dto';
-import * as fs from 'fs';
 
 @Controller('audio')
 export class AudioController {
   private readonly logger = new Logger(AudioController.name);
 
-  constructor(
-    private readonly ttsService: AzureTTSService,
-    private readonly llmService: LLMService,
-    private readonly azureBlobService: AzureBlobService,
-  ) {}
+  constructor(private readonly ttsService: AzureTTSService) {}
 
   @Post('generate')
   async generateAudio(@Body() dto: GenerateAudioDto, @Req() req: Request) {
@@ -31,37 +23,27 @@ export class AudioController {
       throw new HttpException('Prompt requerido', HttpStatus.BAD_REQUEST);
     }
 
-    const duration = dto.duration || 20;
-    const userId = (req as any).user?.id || 'anon';
+    const userId = (req as any).user?.id || 'labs';
+    const generationId = `gen_${Date.now().toString(36)}_${Math.floor(Math.random() * 10000)}`;
+    const timestamp = Date.now();
 
     try {
-      // ✅ 1. Generar libreto narrativo con IA
-      const script = await this.llmService.generateNarrativeScript(dto.prompt, duration);
+      this.logger.log(`🎙️ Generando audio para el usuario ${userId} con prompt:\n${dto.prompt}`);
+      const result = await this.ttsService.generateAudioFromPrompt(dto.prompt);
 
-      // ✅ 2. Generar audio TTS desde el libreto
-      const audioResult = await this.ttsService.generateAudioFromPrompt(script);
-
-      // ✅ 3. Subir el archivo a Azure Blob Storage
-      const blobName = `audio/${audioResult.fileName}`;
-      await this.azureBlobService.uploadFileToBlob(audioResult.audioPath, blobName, 'audio/mpeg');
-
-      // ✅ 4. Generar URL SAS segura (24 horas)
-      const audioUrl = await this.azureBlobService.generateSasUrl(blobName, 86400);
-
-      // ✅ 5. Borrar archivo temporal local
-      fs.unlinkSync(audioResult.audioPath);
-
-      // ✅ 6. Enviar respuesta
       return {
         success: true,
+        message: '🎧 Audio generado con éxito',
         result: {
-          script,
-          audioUrl,
-          duration: audioResult.duration,
+          ...result, // Contiene: script, duration, filename, blobUrl
+          generationId,
+          userId,
+          timestamp,
         },
       };
     } catch (error) {
-      this.logger.error('❌ Error generando audio:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(`❌ Error generando audio: ${errorMessage}`);
       throw new HttpException('Error generando audio', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }

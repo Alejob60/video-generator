@@ -13,7 +13,7 @@ import { SoraModule } from './infrastructure/modules/sora.module';
 
 // 🧩 Controladores
 import { HealthController } from './interfaces/controllers/health.controller';
-
+import { LLMModule } from './infrastructure/modules/llm.module';
 // 🧩 Workers (consumidores de cola)
 import { VideoQueueConsumerService } from './infrastructure/services/video-queue-consumer.service';
 import { PromoImageQueueConsumerService } from './infrastructure/services/promo-image-queue-consumer.service';
@@ -36,10 +36,12 @@ import { PromoImageQueueConsumerService } from './infrastructure/services/promo-
     AudioModule,
     PromoImageModule,
     SoraModule,
+    LLMModule,
   ],
   controllers: [
     // 📡 Controladores HTTP
     HealthController,
+    
   ],
   providers: [
     // 🔁 Consumidores de Azure Service Bus

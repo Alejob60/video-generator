@@ -17,16 +17,20 @@ export declare class VideoService {
         timestamp: number;
     }>;
     processGeneratedAssets(jobId: string, timestamp: number, metadata: any): Promise<{
-        video_url: string;
-        file_name: string;
-        prompt: string;
-        timestamp: number;
+        success: boolean;
+        message: string;
+        data: {
+            prompt: string;
+            timestamp: number;
+            video_url: string;
+            audio_url: string | null;
+            subtitles_url: string | null;
+        };
     }>;
     private waitForUrlAvailable;
     private downloadFile;
     private downloadTTS;
     private generateSubtitles;
-    private combineWithFFmpeg;
     getVideoJobStatus(jobId: string): Promise<{
         status: string;
         generationId?: string;

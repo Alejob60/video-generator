@@ -18,6 +18,22 @@ let SoraVideoClientService = SoraVideoClientService_1 = class SoraVideoClientSer
         this.logger = new common_1.Logger(SoraVideoClientService_1.name);
         this.endpoint = process.env.SORA_VIDEO_URL;
     }
+    async isHealthy() {
+        try {
+            const response = await axios_1.default.get(`${this.endpoint}/health`);
+            return response.data?.status === 'ok' || response.status === 200;
+        }
+        catch (error) {
+            if (axios_1.default.isAxiosError(error)) {
+                this.logger.warn(`⚠️ Axios error al verificar salud de Sora: ${error.message}`);
+            }
+            else {
+                const err = error;
+                this.logger.warn(`⚠️ Error desconocido al verificar salud de Sora: ${err.message}`);
+            }
+            return false;
+        }
+    }
     async requestVideo(prompt, duration) {
         const body = {
             prompt,
@@ -33,7 +49,7 @@ let SoraVideoClientService = SoraVideoClientService_1 = class SoraVideoClientSer
                     'Content-Type': 'application/json',
                 },
             });
-            const { job_id, generation_id, video_url, file_name, duration } = response.data;
+            const { job_id, generation_id, video_url, file_name } = response.data;
             if (!video_url || !job_id || !generation_id) {
                 this.logger.error(`❌ Respuesta incompleta desde Sora: ${JSON.stringify(response.data)}`);
                 throw new Error('La respuesta del microservicio Sora no contiene los campos esperados.');
@@ -55,7 +71,7 @@ let SoraVideoClientService = SoraVideoClientService_1 = class SoraVideoClientSer
                 this.logger.error('❌ Error al contactar Sora:', error.message);
             }
             else {
-                this.logger.error('❌ Error desconocido al contactar Sora:', error);
+                this.logger.error('❌ Error desconocido al contactar Sora:', JSON.stringify(error));
             }
             throw new Error('Error al generar video en el microservicio Sora.');
         }

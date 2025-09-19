@@ -34,8 +34,9 @@ export class AudioGeneratorService {
       this.logger.log(`📝 Libreto generado: ${script}`);
 
       this.logger.log(`🎙️ Generando audio TTS...`);
-      const ttsResult = await this.ttsService.generateAudioFromPrompt(script);
-      const audioPath = ttsResult.audioPath;
+      const ttsResult = await this.ttsService.generateAudioFromPrompt(script.script);
+
+      const audioPath = ttsResult.filename;
       const fileName = path.basename(audioPath);
       const blobName = `audio/${fileName}`;
 
@@ -62,13 +63,14 @@ export class AudioGeneratorService {
           source: 'audio-generator',
         }),
       });
+
       this.logger.log(`✅ Notificación enviada al backend principal`);
 
-      // 🧹 Eliminar archivo local
+      // 🧹 Eliminar archivo local temporal
       fs.unlinkSync(audioPath);
 
       return {
-        script,
+        script: script.script,
         audioUrl,
         duration: ttsResult.duration,
       };
