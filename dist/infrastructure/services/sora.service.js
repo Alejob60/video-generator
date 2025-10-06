@@ -53,11 +53,9 @@ const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const uuid_1 = require("uuid");
 const azure_blob_service_1 = require("./azure-blob.service");
-const llm_service_1 = require("./llm.service");
 let SoraService = SoraService_1 = class SoraService {
-    constructor(azureBlobService, llmService) {
+    constructor(azureBlobService) {
         this.azureBlobService = azureBlobService;
-        this.llmService = llmService;
         this.logger = new common_1.Logger(SoraService_1.name);
         this.endpoint = process.env.AZURE_SORA_URL;
         this.deployment = process.env.AZURE_SORA_DEPLOYMENT;
@@ -71,12 +69,11 @@ let SoraService = SoraService_1 = class SoraService {
         };
     }
     async createVideoJob(prompt, duration) {
-        const cleanPrompt = await this.llmService.improveVideoPrompt(prompt);
         const url = `${this.endpoint}/openai/deployments/${this.deployment}/video/generations/jobs?api-version=${this.apiVersion}`;
         this.logger.log(`🌐 Enviando POST a: ${url}`);
-        this.logger.log(`🚀 Prompt mejorado enviado: ${cleanPrompt}`);
+        this.logger.log(`🚀 Prompt enviado: ${prompt}`);
         const body = {
-            prompt: cleanPrompt,
+            prompt: prompt,
             n_seconds: duration,
             n_variants: 1,
             height: 720,
@@ -151,7 +148,7 @@ let SoraService = SoraService_1 = class SoraService {
         return blobUrl;
     }
     async generateAndUploadVideo(prompt, duration) {
-        const jobId = await this.createVideoJob(prompt, duration);
+        const jobId = await this.createVideoJob(JSON.stringify(prompt), duration);
         const { url: videoUrl } = await this.waitForVideo(jobId);
         const filename = `video-${(0, uuid_1.v4)()}.mp4`;
         const blobUrl = await this.uploadVideoToBlob(videoUrl, filename);
@@ -164,7 +161,6 @@ let SoraService = SoraService_1 = class SoraService {
 exports.SoraService = SoraService;
 exports.SoraService = SoraService = SoraService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [azure_blob_service_1.AzureBlobService,
-        llm_service_1.LLMService])
+    __metadata("design:paramtypes", [azure_blob_service_1.AzureBlobService])
 ], SoraService);
 //# sourceMappingURL=sora.service.js.map

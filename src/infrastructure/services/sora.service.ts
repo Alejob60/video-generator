@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { AzureBlobService } from './azure-blob.service';
-import { LLMService } from './llm.service';
 
 @Injectable()
 export class SoraService {
@@ -15,8 +14,7 @@ export class SoraService {
   private readonly apiKey = process.env.AZURE_SORA_API_KEY!;
 
   constructor(
-    private readonly azureBlobService: AzureBlobService,
-    private readonly llmService: LLMService
+    private readonly azureBlobService: AzureBlobService
   ) {}
 
   private getHeaders() {
@@ -27,14 +25,12 @@ export class SoraService {
   }
 
   async createVideoJob(prompt: string, duration: number): Promise<string> {
-    const cleanPrompt = await this.llmService.improveVideoPrompt(prompt);
-
     const url = `${this.endpoint}/openai/deployments/${this.deployment}/video/generations/jobs?api-version=${this.apiVersion}`;
     this.logger.log(`🌐 Enviando POST a: ${url}`);
-    this.logger.log(`🚀 Prompt mejorado enviado: ${cleanPrompt}`);
+    this.logger.log(`🚀 Prompt enviado: ${prompt}`);
 
     const body = {
-      prompt: cleanPrompt,
+      prompt: prompt,
       n_seconds: duration,
       n_variants: 1,
       height: 720,
@@ -124,7 +120,7 @@ export class SoraService {
     blobUrl: string;
     jobId: string;
   }> {
-    const jobId = await this.createVideoJob(prompt, duration);
+    const jobId = await this.createVideoJob(JSON.stringify(prompt), duration);
     const { url: videoUrl } = await this.waitForVideo(jobId);
     const filename = `video-${uuidv4()}.mp4`;
     const blobUrl = await this.uploadVideoToBlob(videoUrl, filename);

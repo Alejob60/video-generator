@@ -38,7 +38,7 @@ export class SoraVideoClientService {
     duration: number;
   }> {
     const body = {
-      prompt,
+      prompt: JSON.stringify(prompt),
       n_seconds: duration,
       height: 720,
       width: 1280,

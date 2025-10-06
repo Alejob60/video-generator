@@ -36,7 +36,7 @@ let SoraVideoClientService = SoraVideoClientService_1 = class SoraVideoClientSer
     }
     async requestVideo(prompt, duration) {
         const body = {
-            prompt,
+            prompt: JSON.stringify(prompt),
             n_seconds: duration,
             height: 720,
             width: 1280,

@@ -1,14 +1,12 @@
 import { AzureBlobService } from './azure-blob.service';
-import { LLMService } from './llm.service';
 export declare class SoraService {
     private readonly azureBlobService;
-    private readonly llmService;
     private readonly logger;
     private readonly endpoint;
     private readonly deployment;
     private readonly apiVersion;
     private readonly apiKey;
-    constructor(azureBlobService: AzureBlobService, llmService: LLMService);
+    constructor(azureBlobService: AzureBlobService);
     private getHeaders;
     createVideoJob(prompt: string, duration: number): Promise<string>;
     waitForVideo(jobId: string): Promise<{
