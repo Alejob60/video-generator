@@ -1,8 +1,10 @@
 import { LLMService } from './llm.service';
 import { AzureBlobService } from './azure-blob.service';
+import { FluxImageService } from './flux-image.service';
 export declare class PromoImageService {
     private readonly llmService;
     private readonly azureBlobService;
+    private readonly fluxImageService;
     private readonly logger;
     private readonly endpoint;
     private readonly deployment;
@@ -10,11 +12,12 @@ export declare class PromoImageService {
     private readonly backendUrl;
     private readonly apiKey;
     private readonly openai;
-    constructor(llmService: LLMService, azureBlobService: AzureBlobService);
+    constructor(llmService: LLMService, azureBlobService: AzureBlobService, fluxImageService: FluxImageService);
     generateAndNotify(userId: string, input: {
         prompt?: string;
         imagePath?: string;
         textOverlay?: string;
+        useFlux?: boolean;
     }): Promise<{
         imageUrl: string;
         prompt: string | null;

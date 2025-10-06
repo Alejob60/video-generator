@@ -1,6 +1,6 @@
 // 📁 src/interfaces/dto/generate-promo-image.dto.ts
 
-import { IsOptional, IsString, IsIn } from 'class-validator';
+import { IsOptional, IsString, IsIn, IsBoolean } from 'class-validator';
 
 export class GeneratePromoImageDto {
   /**
@@ -28,4 +28,13 @@ export class GeneratePromoImageDto {
   @IsString()
   @IsIn(['FREE', 'CREATOR', 'PRO'])
   plan!: 'FREE' | 'CREATOR' | 'PRO';
+
+  /**
+   * 🔀 Usar FLUX-1.1-pro en lugar de DALL·E para la generación de imágenes
+   * Cuando es true, utiliza el modelo FLUX-1.1-pro para generar la imagen
+   * Cuando es false o no se especifica, utiliza DALL·E
+   */
+  @IsOptional()
+  @IsBoolean()
+  useFlux?: boolean;
 }

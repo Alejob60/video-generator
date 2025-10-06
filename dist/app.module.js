@@ -17,6 +17,7 @@ const video_module_1 = require("./infrastructure/modules/video.module");
 const audio_module_1 = require("./infrastructure/modules/audio.module");
 const promo_image_module_1 = require("./infrastructure/modules/promo-image.module");
 const sora_module_1 = require("./infrastructure/modules/sora.module");
+const flux_image_module_1 = require("./infrastructure/modules/flux-image.module");
 const health_controller_1 = require("./interfaces/controllers/health.controller");
 const llm_module_1 = require("./infrastructure/modules/llm.module");
 const video_queue_consumer_service_1 = require("./infrastructure/services/video-queue-consumer.service");
@@ -43,6 +44,7 @@ exports.AppModule = AppModule = AppModule_1 = __decorate([
             audio_module_1.AudioModule,
             promo_image_module_1.PromoImageModule,
             sora_module_1.SoraModule,
+            flux_image_module_1.FluxImageModule,
             llm_module_1.LLMModule,
         ],
         controllers: [

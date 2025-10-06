@@ -1,11 +1,14 @@
 export declare class AzureBlobService {
     private readonly logger;
     private readonly blobServiceClient;
-    private readonly containerName;
+    private readonly defaultContainerName;
+    private readonly imagesContainerName;
+    private readonly videoContainerName;
     private readonly accountName;
     private readonly accountKey;
     constructor();
     private getContentType;
+    private getContainerNameFromPath;
     uploadFile(data: Buffer | string, blobPath: string): Promise<string>;
     uploadFileFromPath(filePath: string, filename: string): Promise<string>;
     uploadToContainer(filePath: string, containerName: string, blobName?: string): Promise<string>;

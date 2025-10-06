@@ -50,10 +50,12 @@ const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const llm_service_1 = require("./llm.service");
 const azure_blob_service_1 = require("./azure-blob.service");
+const flux_image_service_1 = require("./flux-image.service");
 let PromoImageService = PromoImageService_1 = class PromoImageService {
-    constructor(llmService, azureBlobService) {
+    constructor(llmService, azureBlobService, fluxImageService) {
         this.llmService = llmService;
         this.azureBlobService = azureBlobService;
+        this.fluxImageService = fluxImageService;
         this.logger = new common_1.Logger(PromoImageService_1.name);
         this.endpoint = process.env.AZURE_OPENAI_IMAGE_ENDPOINT;
         this.deployment = process.env.AZURE_OPENAI_IMAGE_DEPLOYMENT;
@@ -66,7 +68,7 @@ let PromoImageService = PromoImageService_1 = class PromoImageService {
         });
     }
     async generateAndNotify(userId, input) {
-        let { prompt, imagePath } = input;
+        let { prompt, imagePath, useFlux } = input;
         let improvedPrompt = null;
         if (!prompt && !imagePath) {
             throw new Error('Debe proporcionar un prompt o una ruta de imagen.');
@@ -95,9 +97,26 @@ let PromoImageService = PromoImageService_1 = class PromoImageService {
             }
             this.logger.log(`🎨 Prompt ajustado según tipo "${type}": ${improvedPrompt}`);
         }
-        const { azureUrl, localFilename, } = await this.generateImageWithText({
-            prompt: improvedPrompt,
-        });
+        let azureUrl;
+        let localFilename;
+        if (useFlux && prompt) {
+            this.logger.log(`🤖 Usando FLUX-1.1-pro para generar imagen para usuario ${userId}`);
+            const fluxDto = {
+                prompt: improvedPrompt,
+                plan: 'FREE'
+            };
+            const fluxResult = await this.fluxImageService.generateImage(fluxDto);
+            azureUrl = fluxResult.imageUrl;
+            localFilename = fluxResult.filename;
+        }
+        else {
+            this.logger.log(`🤖 Usando DALL·E para generar imagen para usuario ${userId}`);
+            const result = await this.generateImageWithText({
+                prompt: improvedPrompt,
+            });
+            azureUrl = result.azureUrl;
+            localFilename = result.localFilename;
+        }
         await fetch(`${this.backendUrl}/promo-image/complete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -106,6 +125,7 @@ let PromoImageService = PromoImageService_1 = class PromoImageService {
                 prompt: improvedPrompt,
                 imageUrl: azureUrl,
                 filename: localFilename,
+                useFlux: useFlux || false,
             }),
         });
         return {
@@ -185,6 +205,7 @@ exports.PromoImageService = PromoImageService;
 exports.PromoImageService = PromoImageService = PromoImageService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [llm_service_1.LLMService,
-        azure_blob_service_1.AzureBlobService])
+        azure_blob_service_1.AzureBlobService,
+        flux_image_service_1.FluxImageService])
 ], PromoImageService);
 //# sourceMappingURL=promo-image.service.js.map

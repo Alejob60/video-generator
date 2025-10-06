@@ -17,16 +17,26 @@ import axios from 'axios';
 export class AzureBlobService {
   private readonly logger = new Logger(AzureBlobService.name);
   private readonly blobServiceClient: BlobServiceClient;
-  private readonly containerName: string;
+  private readonly defaultContainerName: string;
+  private readonly imagesContainerName: string;
+  private readonly videoContainerName: string;
   private readonly accountName: string;
   private readonly accountKey: string;
 
   constructor() {
     const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING!;
-    this.containerName = process.env.AZURE_STORAGE_CONTAINER_NAME!;
+    this.defaultContainerName = process.env.AZURE_STORAGE_CONTAINER_NAME!;
+    this.imagesContainerName = process.env.AZURE_STORAGE_CONTAINER_IMAGES || this.defaultContainerName;
+    this.videoContainerName = process.env.AZURE_STORAGE_CONTAINER_VIDEO || this.defaultContainerName;
     this.accountName = process.env.AZURE_STORAGE_ACCOUNT_NAME!;
     this.accountKey = process.env.AZURE_STORAGE_KEY!;
     this.blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
+    
+    // Debug logging to verify environment variables
+    this.logger.log(`🔧 Azure Blob Service Configuration:`);
+    this.logger.log(`   Default Container: ${this.defaultContainerName}`);
+    this.logger.log(`   Images Container: ${this.imagesContainerName}`);
+    this.logger.log(`   Video Container: ${this.videoContainerName}`);
   }
 
   private getContentType(filePath: string): string {
@@ -38,14 +48,33 @@ export class AzureBlobService {
     return 'application/octet-stream';
   }
 
+  private getContainerNameFromPath(blobPath: string): string {
+    if (blobPath.startsWith('images/')) {
+      this.logger.log(`📂 Routing path '${blobPath}' to images container: ${this.imagesContainerName}`);
+      return this.imagesContainerName;
+    } else if (blobPath.startsWith('audio/')) {
+      this.logger.log(`📂 Routing path '${blobPath}' to audio container: ${this.defaultContainerName}`);
+      return this.defaultContainerName;
+    } else if (blobPath.startsWith('video/')) {
+      this.logger.log(`📂 Routing path '${blobPath}' to video container: ${this.videoContainerName}`);
+      return this.videoContainerName;
+    } else if (blobPath.startsWith('subtitles/')) {
+      this.logger.log(`📂 Routing path '${blobPath}' to subtitles container: ${this.defaultContainerName}`);
+      return this.defaultContainerName;
+    }
+    this.logger.log(`📂 Routing path '${blobPath}' to default container: ${this.defaultContainerName}`);
+    return this.defaultContainerName;
+  }
+
   async uploadFile(data: Buffer | string, blobPath: string): Promise<string> {
-    const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
+    const containerName = this.getContainerNameFromPath(blobPath);
+    const containerClient = this.blobServiceClient.getContainerClient(containerName);
     await containerClient.createIfNotExists();
 
     const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
     const buffer = typeof data === 'string' ? await readFile(data) : data;
 
-    this.logger.log(`📤 Subiendo a Azure Blob: ${blobPath}`);
+    this.logger.log(`📤 Uploading to Azure Blob: ${blobPath} in container: ${containerName}`);
     await blockBlobClient.uploadData(buffer, {
       blobHTTPHeaders: {
         blobContentType: this.getContentType(blobPath),
@@ -56,7 +85,8 @@ export class AzureBlobService {
   }
 
   async uploadFileFromPath(filePath: string, filename: string): Promise<string> {
-    const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
+    const containerName = this.getContainerNameFromPath(filename);
+    const containerClient = this.blobServiceClient.getContainerClient(containerName);
     const blockBlobClient = containerClient.getBlockBlobClient(filename);
     const fileBuffer = readFileSync(filePath);
 
@@ -87,7 +117,8 @@ export class AzureBlobService {
   }
 
   async uploadFileToBlob(filePath: string, fileName: string, mimeType?: string): Promise<string> {
-    const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
+    const containerName = this.getContainerNameFromPath(fileName);
+    const containerClient = this.blobServiceClient.getContainerClient(containerName);
     await containerClient.createIfNotExists();
 
     const fileBuffer = readFileSync(filePath);
@@ -99,11 +130,13 @@ export class AzureBlobService {
       },
     });
 
+    this.logger.log(`📤 File uploaded to container ${containerName} with name: ${fileName}`);
     return blockBlobClient.url;
   }
 
   async uploadFileFromUrl(url: string, filename: string): Promise<string> {
-    const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
+    const containerName = this.getContainerNameFromPath(filename);
+    const containerClient = this.blobServiceClient.getContainerClient(containerName);
     const blockBlobClient = containerClient.getBlockBlobClient(filename);
 
     const response = await axios.get(url, { responseType: 'arraybuffer' });
@@ -113,11 +146,13 @@ export class AzureBlobService {
       blobHTTPHeaders: { blobContentType: this.getContentType(filename) },
     });
 
+    this.logger.log(`📤 File downloaded from URL and uploaded to container ${containerName} with name: ${filename}`);
     return blockBlobClient.url;
   }
 
   async copyBlobFromUrl(sourceUrl: string, filename: string): Promise<string> {
-    const containerClient = this.blobServiceClient.getContainerClient(this.containerName);
+    const containerName = this.getContainerNameFromPath(filename);
+    const containerClient = this.blobServiceClient.getContainerClient(containerName);
     const blockBlobClient = containerClient.getBlockBlobClient(filename);
 
     await blockBlobClient.syncCopyFromURL(sourceUrl);
@@ -125,11 +160,13 @@ export class AzureBlobService {
   }
 
   async generateSasUrl(blobName: string, durationSeconds: number): Promise<string> {
+    // For SAS URL generation, we need to determine the container from the blob name
+    const containerName = this.getContainerNameFromPath(blobName);
     const credential = new StorageSharedKeyCredential(this.accountName, this.accountKey);
 
     const sas = generateBlobSASQueryParameters(
       {
-        containerName: this.containerName,
+        containerName: containerName,
         blobName,
         permissions: BlobSASPermissions.parse('r'),
         startsOn: new Date(),
@@ -139,6 +176,6 @@ export class AzureBlobService {
       credential,
     ).toString();
 
-    return `https://${this.accountName}.blob.core.windows.net/${this.containerName}/${blobName}?${sas}`;
+    return `https://${this.accountName}.blob.core.windows.net/${containerName}/${blobName}?${sas}`;
   }
 }

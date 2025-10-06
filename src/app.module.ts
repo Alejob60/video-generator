@@ -10,6 +10,7 @@ import { VideoModule } from './infrastructure/modules/video.module';
 import { AudioModule } from './infrastructure/modules/audio.module';
 import { PromoImageModule } from './infrastructure/modules/promo-image.module';
 import { SoraModule } from './infrastructure/modules/sora.module';
+import { FluxImageModule } from './infrastructure/modules/flux-image.module';
 
 // 🧩 Controladores
 import { HealthController } from './interfaces/controllers/health.controller';
@@ -36,6 +37,7 @@ import { PromoImageQueueConsumerService } from './infrastructure/services/promo-
     AudioModule,
     PromoImageModule,
     SoraModule,
+    FluxImageModule,
     LLMModule,
   ],
   controllers: [

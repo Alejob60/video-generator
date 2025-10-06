@@ -4,6 +4,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { LLMService } from './llm.service';
 import { AzureBlobService } from './azure-blob.service';
+import { FluxImageService } from './flux-image.service';
+import { GenerateFluxImageDto } from '../../interfaces/dto/generate-flux-image.dto';
 
 @Injectable()
 export class PromoImageService {
@@ -18,6 +20,7 @@ export class PromoImageService {
   constructor(
     private readonly llmService: LLMService,
     private readonly azureBlobService: AzureBlobService,
+    private readonly fluxImageService: FluxImageService,
   ) {
     this.openai = new OpenAI({
       apiKey: this.apiKey,
@@ -29,6 +32,7 @@ export class PromoImageService {
     prompt?: string;
     imagePath?: string;
     textOverlay?: string;
+    useFlux?: boolean;
   }): Promise<{
     imageUrl: string;
     prompt: string | null;
@@ -36,7 +40,7 @@ export class PromoImageService {
     filename: string;
     plan?: string;
   }> {
-    let { prompt, imagePath } = input;
+    let { prompt, imagePath, useFlux } = input;
     let improvedPrompt: string | null = null;
 
     if (!prompt && !imagePath) {
@@ -71,12 +75,29 @@ export class PromoImageService {
     }
 
     // Generar imagen y subirla
-    const {
-      azureUrl,
-      localFilename,
-    } = await this.generateImageWithText({
-      prompt: improvedPrompt!,
-    });
+    let azureUrl: string;
+    let localFilename: string;
+
+    if (useFlux && prompt) {
+      // Usar FLUX-1.1-pro para generar la imagen
+      this.logger.log(`🤖 Usando FLUX-1.1-pro para generar imagen para usuario ${userId}`);
+      // Create a DTO object instead of just passing a string
+      const fluxDto: GenerateFluxImageDto = {
+        prompt: improvedPrompt!,
+        plan: 'FREE' // Default plan, you might want to pass this as a parameter
+      };
+      const fluxResult = await this.fluxImageService.generateImage(fluxDto);
+      azureUrl = fluxResult.imageUrl;
+      localFilename = fluxResult.filename;
+    } else {
+      // Usar DALL·E para generar la imagen (comportamiento original)
+      this.logger.log(`🤖 Usando DALL·E para generar imagen para usuario ${userId}`);
+      const result = await this.generateImageWithText({
+        prompt: improvedPrompt!,
+      });
+      azureUrl = result.azureUrl;
+      localFilename = result.localFilename;
+    }
 
     // Notificar al backend principal
     await fetch(`${this.backendUrl}/promo-image/complete`, {
@@ -87,6 +108,7 @@ export class PromoImageService {
         prompt: improvedPrompt,
         imageUrl: azureUrl,
         filename: localFilename,
+        useFlux: useFlux || false,
       }),
     });
 
