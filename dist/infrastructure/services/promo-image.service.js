@@ -48,12 +48,10 @@ const common_1 = require("@nestjs/common");
 const openai_1 = require("openai");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
-const llm_service_1 = require("./llm.service");
 const azure_blob_service_1 = require("./azure-blob.service");
 const flux_image_service_1 = require("./flux-image.service");
 let PromoImageService = PromoImageService_1 = class PromoImageService {
-    constructor(llmService, azureBlobService, fluxImageService) {
-        this.llmService = llmService;
+    constructor(azureBlobService, fluxImageService) {
         this.azureBlobService = azureBlobService;
         this.fluxImageService = fluxImageService;
         this.logger = new common_1.Logger(PromoImageService_1.name);
@@ -69,40 +67,19 @@ let PromoImageService = PromoImageService_1 = class PromoImageService {
     }
     async generateAndNotify(userId, input) {
         let { prompt, imagePath, useFlux } = input;
-        let improvedPrompt = null;
+        let finalPrompt = null;
         if (!prompt && !imagePath) {
             throw new Error('Debe proporcionar un prompt o una ruta de imagen.');
         }
         if (prompt) {
-            improvedPrompt = await this.llmService.improveImagePrompt(prompt);
-        }
-        else if (imagePath) {
-            const type = await this.llmService.classifyImageType(imagePath);
-            const basePrompt = await this.llmService.describeAndImproveImage(imagePath);
-            switch (type) {
-                case 'producto':
-                    improvedPrompt = `${basePrompt}. Fondo blanco profesional con luz suave y superficie reflectante.`;
-                    break;
-                case 'persona':
-                    improvedPrompt = `${basePrompt}. Fondo de estudio moderno con iluminación suave.`;
-                    break;
-                case 'mascota':
-                    improvedPrompt = `${basePrompt}. Fondo colorido con elementos divertidos.`;
-                    break;
-                case 'paisaje':
-                    improvedPrompt = `${basePrompt}. Mejorar contraste y profundidad del fondo.`;
-                    break;
-                default:
-                    improvedPrompt = basePrompt;
-            }
-            this.logger.log(`🎨 Prompt ajustado según tipo "${type}": ${improvedPrompt}`);
+            finalPrompt = prompt;
         }
         let azureUrl;
         let localFilename;
         if (useFlux && prompt) {
             this.logger.log(`🤖 Usando FLUX-1.1-pro para generar imagen para usuario ${userId}`);
             const fluxDto = {
-                prompt: improvedPrompt,
+                prompt: finalPrompt,
                 plan: 'FREE'
             };
             const fluxResult = await this.fluxImageService.generateImage(fluxDto);
@@ -112,7 +89,7 @@ let PromoImageService = PromoImageService_1 = class PromoImageService {
         else {
             this.logger.log(`🤖 Usando DALL·E para generar imagen para usuario ${userId}`);
             const result = await this.generateImageWithText({
-                prompt: improvedPrompt,
+                prompt: finalPrompt,
             });
             azureUrl = result.azureUrl;
             localFilename = result.localFilename;
@@ -122,7 +99,7 @@ let PromoImageService = PromoImageService_1 = class PromoImageService {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 userId,
-                prompt: improvedPrompt,
+                prompt: finalPrompt,
                 imageUrl: azureUrl,
                 filename: localFilename,
                 useFlux: useFlux || false,
@@ -130,7 +107,7 @@ let PromoImageService = PromoImageService_1 = class PromoImageService {
         });
         return {
             imageUrl: azureUrl,
-            prompt: improvedPrompt,
+            prompt: finalPrompt,
             imagePath: null,
             filename: localFilename,
         };
@@ -204,8 +181,7 @@ let PromoImageService = PromoImageService_1 = class PromoImageService {
 exports.PromoImageService = PromoImageService;
 exports.PromoImageService = PromoImageService = PromoImageService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [llm_service_1.LLMService,
-        azure_blob_service_1.AzureBlobService,
+    __metadata("design:paramtypes", [azure_blob_service_1.AzureBlobService,
         flux_image_service_1.FluxImageService])
 ], PromoImageService);
 //# sourceMappingURL=promo-image.service.js.map

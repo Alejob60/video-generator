@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AzureOpenAI, OpenAI } from 'openai';
 import * as fs from 'fs';
 import * as path from 'path';
-import { LLMService } from './llm.service';
 import { AzureBlobService } from './azure-blob.service';
 import { FluxImageService } from './flux-image.service';
 import { GenerateFluxImageDto } from '../../interfaces/dto/generate-flux-image.dto';
@@ -18,7 +17,6 @@ export class PromoImageService {
   private readonly openai: OpenAI;
 
   constructor(
-    private readonly llmService: LLMService,
     private readonly azureBlobService: AzureBlobService,
     private readonly fluxImageService: FluxImageService,
   ) {
@@ -41,37 +39,15 @@ export class PromoImageService {
     plan?: string;
   }> {
     let { prompt, imagePath, useFlux } = input;
-    let improvedPrompt: string | null = null;
+    let finalPrompt: string | null = null;
 
     if (!prompt && !imagePath) {
       throw new Error('Debe proporcionar un prompt o una ruta de imagen.');
     }
 
-    // Si hay prompt: mejorarlo. Si hay imagen: describirla y mejorarla.
+    // Usar el prompt directamente sin mejora
     if (prompt) {
-      improvedPrompt = await this.llmService.improveImagePrompt(prompt);
-    } else if (imagePath) {
-      const type = await this.llmService.classifyImageType(imagePath);
-      const basePrompt = await this.llmService.describeAndImproveImage(imagePath);
-
-      switch (type) {
-        case 'producto':
-          improvedPrompt = `${basePrompt}. Fondo blanco profesional con luz suave y superficie reflectante.`;
-          break;
-        case 'persona':
-          improvedPrompt = `${basePrompt}. Fondo de estudio moderno con iluminación suave.`;
-          break;
-        case 'mascota':
-          improvedPrompt = `${basePrompt}. Fondo colorido con elementos divertidos.`;
-          break;
-        case 'paisaje':
-          improvedPrompt = `${basePrompt}. Mejorar contraste y profundidad del fondo.`;
-          break;
-        default:
-          improvedPrompt = basePrompt;
-      }
-
-      this.logger.log(`🎨 Prompt ajustado según tipo "${type}": ${improvedPrompt}`);
+      finalPrompt = prompt;
     }
 
     // Generar imagen y subirla
@@ -83,7 +59,7 @@ export class PromoImageService {
       this.logger.log(`🤖 Usando FLUX-1.1-pro para generar imagen para usuario ${userId}`);
       // Create a DTO object instead of just passing a string
       const fluxDto: GenerateFluxImageDto = {
-        prompt: improvedPrompt!,
+        prompt: finalPrompt!,
         plan: 'FREE' // Default plan, you might want to pass this as a parameter
       };
       const fluxResult = await this.fluxImageService.generateImage(fluxDto);
@@ -93,7 +69,7 @@ export class PromoImageService {
       // Usar DALL·E para generar la imagen (comportamiento original)
       this.logger.log(`🤖 Usando DALL·E para generar imagen para usuario ${userId}`);
       const result = await this.generateImageWithText({
-        prompt: improvedPrompt!,
+        prompt: finalPrompt!,
       });
       azureUrl = result.azureUrl;
       localFilename = result.localFilename;
@@ -105,7 +81,7 @@ export class PromoImageService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId,
-        prompt: improvedPrompt,
+        prompt: finalPrompt,
         imageUrl: azureUrl,
         filename: localFilename,
         useFlux: useFlux || false,
@@ -114,7 +90,7 @@ export class PromoImageService {
 
     return {
       imageUrl: azureUrl,
-      prompt: improvedPrompt,
+      prompt: finalPrompt,
       imagePath: null,
       filename: localFilename,
     };

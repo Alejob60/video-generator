@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AzureTTSService } from './azure-tts.service';
-import { LLMService } from './llm.service';
 import { AzureBlobService } from './azure-blob.service';
 import fetch from 'node-fetch';
 import * as path from 'path';
@@ -13,7 +12,6 @@ export class AudioGeneratorService {
 
   constructor(
     private readonly ttsService: AzureTTSService,
-    private readonly llmService: LLMService,
     private readonly azureBlobService: AzureBlobService,
   ) {}
 
@@ -29,12 +27,8 @@ export class AudioGeneratorService {
     duration: number;
   }> {
     try {
-      this.logger.log(`🎬 Generando libreto IA para duración de ${duration}s...`);
-      const script = await this.llmService.generateNarrativeScript(prompt, duration);
-      this.logger.log(`📝 Libreto generado: ${script}`);
-
-      this.logger.log(`🎙️ Generando audio TTS...`);
-      const ttsResult = await this.ttsService.generateAudioFromPrompt(script.script);
+      this.logger.log(`🎙️ Generando audio TTS directamente desde el prompt...`);
+      const ttsResult = await this.ttsService.generateAudioFromPrompt(prompt);
 
       const audioPath = ttsResult.filename;
       const fileName = path.basename(audioPath);
@@ -52,7 +46,7 @@ export class AudioGeneratorService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId,
-          prompt: script,
+          prompt: prompt,
           audioUrl,
           duration: ttsResult.duration,
           plan,
@@ -70,7 +64,7 @@ export class AudioGeneratorService {
       fs.unlinkSync(audioPath);
 
       return {
-        script: script.script,
+        script: prompt,
         audioUrl,
         duration: ttsResult.duration,
       };

@@ -46,7 +46,7 @@ export class SoraVideoClientService {
     };
 
     try {
-      this.logger.log(`🎥 Enviando solicitud a microservicio Sora con prompt mejorado:\n${prompt}`);
+      this.logger.log(`🎥 Enviando solicitud a microservicio Sora con prompt directo:\n${prompt}`);
 
       const response = await axios.post(`${this.endpoint}/video/generate`, body, {
         headers: {

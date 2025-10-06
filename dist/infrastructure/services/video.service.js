@@ -43,30 +43,42 @@ let VideoService = VideoService_1 = class VideoService {
             subtitles: `${base}/subtitles/${timestamp}.srt`,
         }[type];
     }
-    async generateFullVideo(options) {
-        const timestamp = Date.now();
-        this.logger.log(`🚀 Solicitando video con prompt:\n${options.script}`);
-        const { data } = await axios_1.default.post(`${this.soraEndpoint}/video/generations/jobs?api-version=${this.soraApiVersion}`, {
-            prompt: options.script.slice(0, 500),
-            n_variants: 1,
-            n_seconds: options.n_seconds || 5,
-            height: 1080,
-            width: 1080,
-            model: 'soramodel',
-        }, {
-            headers: {
-                'api-key': this.apiKey,
-                'Content-Type': 'application/json',
-            },
-        });
-        const jobId = data.id;
-        this.logger.log(`📨 Job enviado a Sora con ID: ${jobId}`);
-        await this.bus.sendVideoJobMessage(jobId, timestamp, {
-            script: options.script,
-            narration: options.useVoice,
-            subtitles: options.useSubtitles,
-        });
-        return { jobId, timestamp };
+    async generateFullVideo(dto) {
+        try {
+            this.logger.log(`🎬 Iniciando generación de video con prompt JSON directo...`);
+            const soraPayload = {
+                prompt: dto.prompt,
+                duration: dto.n_seconds ?? 10,
+                realism: "photorealistic",
+                physics: "natural",
+                lighting: "ambient realistic",
+            };
+            const { data } = await axios_1.default.post(`${this.soraEndpoint}/video/generations/jobs?api-version=${this.soraApiVersion}`, {
+                prompt: JSON.stringify(dto.prompt),
+                n_variants: 1,
+                n_seconds: dto.n_seconds || 5,
+                height: 1080,
+                width: 1080,
+                model: 'soramodel',
+            }, {
+                headers: {
+                    'api-key': this.apiKey,
+                    'Content-Type': 'application/json',
+                },
+            });
+            const jobId = data.id;
+            this.logger.log(`📨 Job enviado a Sora con ID: ${jobId}`);
+            await this.bus.sendVideoJobMessage(jobId, Date.now(), {
+                script: JSON.stringify(dto.prompt),
+                narration: dto.useVoice,
+                subtitles: dto.useSubtitles,
+            });
+            return { jobId, timestamp: Date.now() };
+        }
+        catch (error) {
+            this.logger.error(`❌ Error al generar video`, error);
+            throw error;
+        }
     }
     async processGeneratedAssets(jobId, timestamp, metadata) {
         const statusUrl = `${this.soraEndpoint}/openai/v1/video/generations/jobs/${jobId}?api-version=preview`;

@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { getAudioDurationInSeconds } from 'get-audio-duration';
-import { LLMService } from './llm.service';
 import { AzureBlobService } from './azure-blob.service';
 
 @Injectable()
@@ -16,7 +15,6 @@ export class AzureTTSService {
   private readonly model = 'gpt-4o-mini-tts';
 
   constructor(
-    private readonly llmService: LLMService,
     private readonly blobService: AzureBlobService
   ) {}
 
@@ -26,7 +24,6 @@ export class AzureTTSService {
     filename: string;
     blobUrl: string;
   }> {
-    const { script } = await this.llmService.generateNarrativeScript(prompt, 30);
     const filename = `audio-${uuidv4()}.mp3`;
     const localDir = path.join(__dirname, '../../../public/audio');
     const localPath = path.join(localDir, filename);
@@ -38,7 +35,7 @@ export class AzureTTSService {
 
       const payload = {
         model: this.model,
-        input: script,
+        input: prompt,
         voice: this.voice,
       };
 
@@ -66,7 +63,7 @@ export class AzureTTSService {
 
       this.logger.log(`✅ Audio generado y subido correctamente`);
       return {
-        script,
+        script: prompt,
         duration,
         filename,
         blobUrl,

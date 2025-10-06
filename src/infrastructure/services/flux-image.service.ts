@@ -3,7 +3,6 @@ import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { LLMService } from './llm.service';
 import { AzureBlobService } from './azure-blob.service';
 import { GenerateFluxImageDto } from '../../interfaces/dto/generate-flux-image.dto';
 
@@ -16,31 +15,13 @@ export class FluxImageService {
   private readonly backendUrl = process.env.MAIN_BACKEND_URL!;
 
   constructor(
-    private readonly llmService: LLMService,
     private readonly azureBlobService: AzureBlobService,
   ) {}
 
   async generateImageAndNotify(userId: string, dto: GenerateFluxImageDto): Promise<{ imageUrl: string; filename: string; prompt: string }> {
-    // Check if the prompt is already a JSON prompt
-    let finalPrompt: string;
-    
-    if (dto.isJsonPrompt) {
-      // If it's marked as a JSON prompt, use it as-is
-      finalPrompt = dto.prompt;
-      this.logger.log(`📋 Received JSON prompt, using as-is: ${finalPrompt}`);
-    } else {
-      try {
-        // Try to parse the prompt as JSON
-        const parsedPrompt = JSON.parse(dto.prompt);
-        // If it's valid JSON, use it as-is
-        finalPrompt = dto.prompt;
-        this.logger.log(`📋 Detected JSON prompt, using as-is: ${JSON.stringify(parsedPrompt)}`);
-      } catch (e) {
-        // If it's not valid JSON, improve it using LLM service
-        finalPrompt = await this.llmService.improveImagePrompt(dto.prompt);
-        this.logger.log(`🎨 Improved text prompt for FLUX: ${finalPrompt}`);
-      }
-    }
+    // Usar el prompt directamente sin mejora
+    let finalPrompt: string = dto.prompt;
+    this.logger.log(`📋 Using prompt as-is: ${finalPrompt}`);
 
     const url = `${this.endpoint}?api-version=${this.apiVersion}`;
     
@@ -178,26 +159,9 @@ export class FluxImageService {
   }
   
   async generateImage(dto: GenerateFluxImageDto): Promise<{ imageUrl: string; filename: string }> {
-    // Check if the prompt is already a JSON prompt
-    let finalPrompt: string;
-    
-    if (dto.isJsonPrompt) {
-      // If it's marked as a JSON prompt, use it as-is
-      finalPrompt = dto.prompt;
-      this.logger.log(`📋 Received JSON prompt, using as-is: ${finalPrompt}`);
-    } else {
-      try {
-        // Try to parse the prompt as JSON
-        const parsedPrompt = JSON.parse(dto.prompt);
-        // If it's valid JSON, use it as-is
-        finalPrompt = dto.prompt;
-        this.logger.log(`📋 Detected JSON prompt, using as-is: ${JSON.stringify(parsedPrompt)}`);
-      } catch (e) {
-        // If it's not valid JSON, improve it using LLM service
-        finalPrompt = await this.llmService.improveImagePrompt(dto.prompt);
-        this.logger.log(`🎨 Improved text prompt for FLUX: ${finalPrompt}`);
-      }
-    }
+    // Usar el prompt directamente sin mejora
+    let finalPrompt: string = dto.prompt;
+    this.logger.log(`📋 Using prompt as-is: ${finalPrompt}`);
 
     const url = `${this.endpoint}?api-version=${this.apiVersion}`;
     

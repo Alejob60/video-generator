@@ -6,9 +6,9 @@ import {
   HttpStatus,
   Logger,
   Req,
+  Get,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { LLMService } from '../../infrastructure/services/llm.service';
 import { SoraVideoClientService } from '../../infrastructure/services/sora-video-client.service';
 import { AzureTTSService } from '../../infrastructure/services/azure-tts.service';
 import { AzureBlobService } from '../../infrastructure/services/azure-blob.service';
@@ -19,11 +19,19 @@ export class VideoController {
   private readonly logger = new Logger(VideoController.name);
 
   constructor(
-    private readonly llmService: LLMService,
     private readonly soraClient: SoraVideoClientService,
     private readonly ttsService: AzureTTSService,
     private readonly azureBlobService: AzureBlobService,
   ) {}
+
+  @Get('health')
+  checkHealth() {
+    return {
+      status: 'ok',
+      sora: this.soraClient.isHealthy(),
+      timestamp: new Date(),
+    };
+  }
 
   @Post('generate')
   async generateVideo(@Body() dto: GenerateVideoDto, @Req() req: Request) {
@@ -35,12 +43,12 @@ export class VideoController {
     };
 
     // 🧪 Validaciones
-    if (!dto.prompt || typeof dto.prompt !== 'string' || dto.prompt.trim().length < 10) {
+    if (!dto.prompt) {
       this.logger.warn(`[${userId}] ❌ Prompt inválido: "${dto.prompt}"`);
-      throw new HttpException('El prompt debe tener al menos 10 caracteres.', HttpStatus.BAD_REQUEST);
+      throw new HttpException('El prompt es requerido.', HttpStatus.BAD_REQUEST);
     }
 
-    const duration = 20;
+    const duration = dto.n_seconds || 10;
     const plan = typeof dto.plan === 'string' && ['free', 'creator', 'pro'].includes(dto.plan) ? dto.plan : 'free';
     result.duration = duration;
     result.plan = plan;
@@ -60,15 +68,9 @@ export class VideoController {
         };
       }
 
-      // ✨ Mejorar prompt
-      this.logger.log('🧠 Solicitando mejora del prompt...');
-      const improvedPromptObject = await this.llmService.improveVideoPrompt(dto.prompt.trim());
-      const improvedPromptString = `${improvedPromptObject.scene}. Characters: ${improvedPromptObject.characters.join(', ')}. Camera: ${improvedPromptObject.camera}. Lighting: ${improvedPromptObject.lighting}. Style: ${improvedPromptObject.style}. Focus: ${improvedPromptObject.interactionFocus}`;
-      result.prompt = improvedPromptObject;
-
-      // 📤 Enviar a Sora
-      this.logger.debug(`📤 Enviando solicitud a Sora con payload: ${JSON.stringify({ prompt: improvedPromptString, duration, plan })}`);
-      const soraResponse = await this.soraClient.requestVideo(improvedPromptString, duration);
+      // 📤 Enviar a Sora (usando prompt directamente sin mejora)
+      this.logger.debug(`📤 Enviando solicitud a Sora con payload: ${JSON.stringify({ prompt: dto.prompt, duration, plan })}`);
+      const soraResponse = await this.soraClient.requestVideo(JSON.stringify(dto.prompt), duration);
       const { video_url, job_id, generation_id, file_name } = soraResponse;
 
       if (!video_url || !file_name) {
@@ -90,7 +92,7 @@ export class VideoController {
       if (dto.useVoice) {
         try {
           this.logger.log('🎤 Generando narración TTS...');
-          const audioResult = await this.ttsService.generateAudioFromPrompt(improvedPromptString);
+          const audioResult = await this.ttsService.generateAudioFromPrompt(JSON.stringify(dto.prompt));
           result.audioUrl = audioResult.blobUrl;
           result.script = audioResult.script;
         } catch (err) {

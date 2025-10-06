@@ -1,6 +1,6 @@
-import { VideoGenerationOptions } from '../../types/video-generation-options';
 import { ServiceBusService } from './service-bus.service';
 import { AzureBlobService } from './azure-blob.service';
+import { GenerateVideoDto } from '../../interfaces/dto/generate-video.dto';
 export declare class VideoService {
     private readonly bus;
     private readonly azureBlobService;
@@ -12,7 +12,7 @@ export declare class VideoService {
     private readonly ttsVoice;
     constructor(bus: ServiceBusService, azureBlobService: AzureBlobService);
     private buildPath;
-    generateFullVideo(options: VideoGenerationOptions): Promise<{
+    generateFullVideo(dto: GenerateVideoDto): Promise<{
         jobId: string;
         timestamp: number;
     }>;

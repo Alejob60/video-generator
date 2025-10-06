@@ -52,11 +52,9 @@ const axios_1 = __importDefault(require("axios"));
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const uuid_1 = require("uuid");
-const llm_service_1 = require("./llm.service");
 const azure_blob_service_1 = require("./azure-blob.service");
 let FluxImageService = FluxImageService_1 = class FluxImageService {
-    constructor(llmService, azureBlobService) {
-        this.llmService = llmService;
+    constructor(azureBlobService) {
         this.azureBlobService = azureBlobService;
         this.logger = new common_1.Logger(FluxImageService_1.name);
         this.endpoint = 'https://labsc-m9j5kbl9-eastus2.services.ai.azure.com/openai/deployments/FLUX-1.1-pro/images/generations';
@@ -65,22 +63,8 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
         this.backendUrl = process.env.MAIN_BACKEND_URL;
     }
     async generateImageAndNotify(userId, dto) {
-        let finalPrompt;
-        if (dto.isJsonPrompt) {
-            finalPrompt = dto.prompt;
-            this.logger.log(`📋 Received JSON prompt, using as-is: ${finalPrompt}`);
-        }
-        else {
-            try {
-                const parsedPrompt = JSON.parse(dto.prompt);
-                finalPrompt = dto.prompt;
-                this.logger.log(`📋 Detected JSON prompt, using as-is: ${JSON.stringify(parsedPrompt)}`);
-            }
-            catch (e) {
-                finalPrompt = await this.llmService.improveImagePrompt(dto.prompt);
-                this.logger.log(`🎨 Improved text prompt for FLUX: ${finalPrompt}`);
-            }
-        }
+        let finalPrompt = dto.prompt;
+        this.logger.log(`📋 Using prompt as-is: ${finalPrompt}`);
         const url = `${this.endpoint}?api-version=${this.apiVersion}`;
         const payload = {
             prompt: finalPrompt,
@@ -179,22 +163,8 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
         }
     }
     async generateImage(dto) {
-        let finalPrompt;
-        if (dto.isJsonPrompt) {
-            finalPrompt = dto.prompt;
-            this.logger.log(`📋 Received JSON prompt, using as-is: ${finalPrompt}`);
-        }
-        else {
-            try {
-                const parsedPrompt = JSON.parse(dto.prompt);
-                finalPrompt = dto.prompt;
-                this.logger.log(`📋 Detected JSON prompt, using as-is: ${JSON.stringify(parsedPrompt)}`);
-            }
-            catch (e) {
-                finalPrompt = await this.llmService.improveImagePrompt(dto.prompt);
-                this.logger.log(`🎨 Improved text prompt for FLUX: ${finalPrompt}`);
-            }
-        }
+        let finalPrompt = dto.prompt;
+        this.logger.log(`📋 Using prompt as-is: ${finalPrompt}`);
         const url = `${this.endpoint}?api-version=${this.apiVersion}`;
         const payload = {
             prompt: finalPrompt,
@@ -284,7 +254,6 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
 exports.FluxImageService = FluxImageService;
 exports.FluxImageService = FluxImageService = FluxImageService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [llm_service_1.LLMService,
-        azure_blob_service_1.AzureBlobService])
+    __metadata("design:paramtypes", [azure_blob_service_1.AzureBlobService])
 ], FluxImageService);
 //# sourceMappingURL=flux-image.service.js.map

@@ -24,8 +24,8 @@ let SoraController = class SoraController {
         if (!dto.useSora) {
             throw new common_1.HttpException('⚠️ Este endpoint solo funciona si useSora es true.', common_1.HttpStatus.BAD_REQUEST);
         }
-        const duration = dto.duration ?? 10;
-        const result = await this.soraService.generateAndUploadVideo(dto.prompt, duration);
+        const duration = dto.n_seconds ?? 10;
+        const result = await this.soraService.generateAndUploadVideo(JSON.stringify(dto.prompt), duration);
         return {
             success: true,
             message: '✅ Video generado y subido exitosamente con Sora',

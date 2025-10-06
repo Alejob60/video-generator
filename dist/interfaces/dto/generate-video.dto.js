@@ -16,8 +16,8 @@ class GenerateVideoDto {
 }
 exports.GenerateVideoDto = GenerateVideoDto;
 __decorate([
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
+    (0, class_validator_1.IsDefined)(),
+    __metadata("design:type", Object)
 ], GenerateVideoDto.prototype, "prompt", void 0);
 __decorate([
     (0, class_transformer_1.Transform)(({ value }) => value === 'true' || value === true),
@@ -51,5 +51,5 @@ __decorate([
     (0, class_validator_1.Min)(5),
     (0, class_validator_1.Max)(20),
     __metadata("design:type", Number)
-], GenerateVideoDto.prototype, "duration", void 0);
+], GenerateVideoDto.prototype, "n_seconds", void 0);
 //# sourceMappingURL=generate-video.dto.js.map

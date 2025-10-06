@@ -6,6 +6,7 @@ import { VideoGenerationOptions } from '../../types/video-generation-options';
 import { ServiceBusService } from './service-bus.service';
 import { AzureBlobService } from './azure-blob.service';
 import { safeErrorMessage } from '../../common/utils/error.util';
+import { GenerateVideoDto } from '../../interfaces/dto/generate-video.dto';
 
 @Injectable()
 export class VideoService {
@@ -30,38 +31,50 @@ export class VideoService {
     }[type];
   }
 
-  async generateFullVideo(options: VideoGenerationOptions): Promise<{ jobId: string; timestamp: number }> {
-    const timestamp = Date.now();
-    this.logger.log(`🚀 Solicitando video con prompt:\n${options.script}`);
+  async generateFullVideo(dto: GenerateVideoDto): Promise<{ jobId: string; timestamp: number }> {
+    try {
+      this.logger.log(`🎬 Iniciando generación de video con prompt JSON directo...`);
 
-    const { data } = await axios.post(
-      `${this.soraEndpoint}/video/generations/jobs?api-version=${this.soraApiVersion}`,
-      {
-        prompt: options.script.slice(0, 500),
-        n_variants: 1,
-        n_seconds: options.n_seconds || 5,
-        height: 1080,
-        width: 1080,
-        model: 'soramodel',
-      },
-      {
-        headers: {
-          'api-key': this.apiKey,
-          'Content-Type': 'application/json',
+      const soraPayload = {
+        prompt: dto.prompt, // JSON directo del frontend
+        duration: dto.n_seconds ?? 10,
+        realism: "photorealistic",
+        physics: "natural",
+        lighting: "ambient realistic",
+      };
+
+      const { data } = await axios.post(
+        `${this.soraEndpoint}/video/generations/jobs?api-version=${this.soraApiVersion}`,
+        {
+          prompt: JSON.stringify(dto.prompt),
+          n_variants: 1,
+          n_seconds: dto.n_seconds || 5,
+          height: 1080,
+          width: 1080,
+          model: 'soramodel',
         },
-      },
-    );
+        {
+          headers: {
+            'api-key': this.apiKey,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
 
-    const jobId = data.id;
-    this.logger.log(`📨 Job enviado a Sora con ID: ${jobId}`);
+      const jobId = data.id;
+      this.logger.log(`📨 Job enviado a Sora con ID: ${jobId}`);
 
-    await this.bus.sendVideoJobMessage(jobId, timestamp, {
-      script: options.script,
-      narration: options.useVoice,
-      subtitles: options.useSubtitles,
-    });
+      await this.bus.sendVideoJobMessage(jobId, Date.now(), {
+        script: JSON.stringify(dto.prompt),
+        narration: dto.useVoice,
+        subtitles: dto.useSubtitles,
+      });
 
-    return { jobId, timestamp };
+      return { jobId, timestamp: Date.now() };
+    } catch (error) {
+      this.logger.error(`❌ Error al generar video`, error);
+      throw error;
+    }
   }
 
   async processGeneratedAssets(jobId: string, timestamp: number, metadata: any): Promise<{

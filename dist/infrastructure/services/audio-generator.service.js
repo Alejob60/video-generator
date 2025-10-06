@@ -49,26 +49,21 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AudioGeneratorService = void 0;
 const common_1 = require("@nestjs/common");
 const azure_tts_service_1 = require("./azure-tts.service");
-const llm_service_1 = require("./llm.service");
 const azure_blob_service_1 = require("./azure-blob.service");
 const node_fetch_1 = __importDefault(require("node-fetch"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 let AudioGeneratorService = AudioGeneratorService_1 = class AudioGeneratorService {
-    constructor(ttsService, llmService, azureBlobService) {
+    constructor(ttsService, azureBlobService) {
         this.ttsService = ttsService;
-        this.llmService = llmService;
         this.azureBlobService = azureBlobService;
         this.logger = new common_1.Logger(AudioGeneratorService_1.name);
         this.backendUrl = process.env.MAIN_BACKEND_URL;
     }
     async generateAudio(userId, prompt, duration, plan = 'FREE', creditsUsed = 5) {
         try {
-            this.logger.log(`🎬 Generando libreto IA para duración de ${duration}s...`);
-            const script = await this.llmService.generateNarrativeScript(prompt, duration);
-            this.logger.log(`📝 Libreto generado: ${script}`);
-            this.logger.log(`🎙️ Generando audio TTS...`);
-            const ttsResult = await this.ttsService.generateAudioFromPrompt(script.script);
+            this.logger.log(`🎙️ Generando audio TTS directamente desde el prompt...`);
+            const ttsResult = await this.ttsService.generateAudioFromPrompt(prompt);
             const audioPath = ttsResult.filename;
             const fileName = path.basename(audioPath);
             const blobName = `audio/${fileName}`;
@@ -82,7 +77,7 @@ let AudioGeneratorService = AudioGeneratorService_1 = class AudioGeneratorServic
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     userId,
-                    prompt: script,
+                    prompt: prompt,
                     audioUrl,
                     duration: ttsResult.duration,
                     plan,
@@ -96,7 +91,7 @@ let AudioGeneratorService = AudioGeneratorService_1 = class AudioGeneratorServic
             this.logger.log(`✅ Notificación enviada al backend principal`);
             fs.unlinkSync(audioPath);
             return {
-                script: script.script,
+                script: prompt,
                 audioUrl,
                 duration: ttsResult.duration,
             };
@@ -118,7 +113,6 @@ exports.AudioGeneratorService = AudioGeneratorService;
 exports.AudioGeneratorService = AudioGeneratorService = AudioGeneratorService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [azure_tts_service_1.AzureTTSService,
-        llm_service_1.LLMService,
         azure_blob_service_1.AzureBlobService])
 ], AudioGeneratorService);
 //# sourceMappingURL=audio-generator.service.js.map

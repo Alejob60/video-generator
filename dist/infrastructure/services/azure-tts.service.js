@@ -53,11 +53,9 @@ const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const uuid_1 = require("uuid");
 const get_audio_duration_1 = require("get-audio-duration");
-const llm_service_1 = require("./llm.service");
 const azure_blob_service_1 = require("./azure-blob.service");
 let AzureTTSService = AzureTTSService_1 = class AzureTTSService {
-    constructor(llmService, blobService) {
-        this.llmService = llmService;
+    constructor(blobService) {
         this.blobService = blobService;
         this.logger = new common_1.Logger(AzureTTSService_1.name);
         this.apiUrl = `${process.env.AZURE_TTS_ENDPOINT}/openai/deployments/${process.env.AZURE_TTS_DEPLOYMENT}/audio/speech?api-version=${process.env.AZURE_TTS_API_VERSION}`;
@@ -66,7 +64,6 @@ let AzureTTSService = AzureTTSService_1 = class AzureTTSService {
         this.model = 'gpt-4o-mini-tts';
     }
     async generateAudioFromPrompt(prompt) {
-        const { script } = await this.llmService.generateNarrativeScript(prompt, 30);
         const filename = `audio-${(0, uuid_1.v4)()}.mp3`;
         const localDir = path.join(__dirname, '../../../public/audio');
         const localPath = path.join(localDir, filename);
@@ -76,7 +73,7 @@ let AzureTTSService = AzureTTSService_1 = class AzureTTSService {
             this.logger.log(`📡 Enviando texto a Azure TTS...`);
             const payload = {
                 model: this.model,
-                input: script,
+                input: prompt,
                 voice: this.voice,
             };
             const response = await axios_1.default.post(this.apiUrl, payload, {
@@ -98,7 +95,7 @@ let AzureTTSService = AzureTTSService_1 = class AzureTTSService {
             fs.unlinkSync(localPath);
             this.logger.log(`✅ Audio generado y subido correctamente`);
             return {
-                script,
+                script: prompt,
                 duration,
                 filename,
                 blobUrl,
@@ -132,7 +129,6 @@ let AzureTTSService = AzureTTSService_1 = class AzureTTSService {
 exports.AzureTTSService = AzureTTSService;
 exports.AzureTTSService = AzureTTSService = AzureTTSService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [llm_service_1.LLMService,
-        azure_blob_service_1.AzureBlobService])
+    __metadata("design:paramtypes", [azure_blob_service_1.AzureBlobService])
 ], AzureTTSService);
 //# sourceMappingURL=azure-tts.service.js.map

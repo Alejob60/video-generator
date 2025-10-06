@@ -8,16 +8,17 @@ import {
   IsString,
   Min,
   Max,
+  IsDefined,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class GenerateVideoDto {
   /**
    * 🎯 Prompt original ingresado por el usuario
-   * Ej: "Un robot bailando salsa en la playa al atardecer"
+   * Puede ser un string o un objeto JSON
    */
-  @IsString()
-  prompt!: string;
+  @IsDefined()
+  prompt!: Record<string, any> | string;
 
   /**
    * 🔊 ¿Incluir narración generada con TTS?
@@ -68,5 +69,5 @@ export class GenerateVideoDto {
   @IsInt()
   @Min(5)
   @Max(20)
-  duration?: number;
+  n_seconds?: number;
 }

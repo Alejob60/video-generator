@@ -1,9 +1,9 @@
 export declare class GenerateVideoDto {
-    prompt: string;
+    prompt: Record<string, any> | string;
     useVoice: boolean;
     useSubtitles: boolean;
     useMusic: boolean;
     useSora: boolean;
     plan: 'free' | 'creator' | 'pro';
-    duration?: number;
+    n_seconds?: number;
 }

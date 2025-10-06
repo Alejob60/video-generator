@@ -12,9 +12,9 @@ export class SoraController {
       throw new HttpException('⚠️ Este endpoint solo funciona si useSora es true.', HttpStatus.BAD_REQUEST);
     }
 
-    const duration = dto.duration ?? 10; // Default a 10 segundos si no se define
+    const duration = dto.n_seconds ?? 10; // Default a 10 segundos si no se define
 
-    const result = await this.soraService.generateAndUploadVideo(dto.prompt, duration);
+    const result = await this.soraService.generateAndUploadVideo(JSON.stringify(dto.prompt), duration);
 
     return {
       success: true,

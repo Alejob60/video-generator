@@ -15,18 +15,23 @@ var VideoController_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.VideoController = void 0;
 const common_1 = require("@nestjs/common");
-const llm_service_1 = require("../../infrastructure/services/llm.service");
 const sora_video_client_service_1 = require("../../infrastructure/services/sora-video-client.service");
 const azure_tts_service_1 = require("../../infrastructure/services/azure-tts.service");
 const azure_blob_service_1 = require("../../infrastructure/services/azure-blob.service");
 const generate_video_dto_1 = require("../dto/generate-video.dto");
 let VideoController = VideoController_1 = class VideoController {
-    constructor(llmService, soraClient, ttsService, azureBlobService) {
-        this.llmService = llmService;
+    constructor(soraClient, ttsService, azureBlobService) {
         this.soraClient = soraClient;
         this.ttsService = ttsService;
         this.azureBlobService = azureBlobService;
         this.logger = new common_1.Logger(VideoController_1.name);
+    }
+    checkHealth() {
+        return {
+            status: 'ok',
+            sora: this.soraClient.isHealthy(),
+            timestamp: new Date(),
+        };
     }
     async generateVideo(dto, req) {
         const userId = req?.user?.id || 'admin';
@@ -35,11 +40,11 @@ let VideoController = VideoController_1 = class VideoController {
             timestamp: Date.now(),
             videoUrl: '',
         };
-        if (!dto.prompt || typeof dto.prompt !== 'string' || dto.prompt.trim().length < 10) {
+        if (!dto.prompt) {
             this.logger.warn(`[${userId}] ❌ Prompt inválido: "${dto.prompt}"`);
-            throw new common_1.HttpException('El prompt debe tener al menos 10 caracteres.', common_1.HttpStatus.BAD_REQUEST);
+            throw new common_1.HttpException('El prompt es requerido.', common_1.HttpStatus.BAD_REQUEST);
         }
-        const duration = 20;
+        const duration = dto.n_seconds || 10;
         const plan = typeof dto.plan === 'string' && ['free', 'creator', 'pro'].includes(dto.plan) ? dto.plan : 'free';
         result.duration = duration;
         result.plan = plan;
@@ -55,12 +60,8 @@ let VideoController = VideoController_1 = class VideoController {
                     result,
                 };
             }
-            this.logger.log('🧠 Solicitando mejora del prompt...');
-            const improvedPromptObject = await this.llmService.improveVideoPrompt(dto.prompt.trim());
-            const improvedPromptString = `${improvedPromptObject.scene}. Characters: ${improvedPromptObject.characters.join(', ')}. Camera: ${improvedPromptObject.camera}. Lighting: ${improvedPromptObject.lighting}. Style: ${improvedPromptObject.style}. Focus: ${improvedPromptObject.interactionFocus}`;
-            result.prompt = improvedPromptObject;
-            this.logger.debug(`📤 Enviando solicitud a Sora con payload: ${JSON.stringify({ prompt: improvedPromptString, duration, plan })}`);
-            const soraResponse = await this.soraClient.requestVideo(improvedPromptString, duration);
+            this.logger.debug(`📤 Enviando solicitud a Sora con payload: ${JSON.stringify({ prompt: dto.prompt, duration, plan })}`);
+            const soraResponse = await this.soraClient.requestVideo(JSON.stringify(dto.prompt), duration);
             const { video_url, job_id, generation_id, file_name } = soraResponse;
             if (!video_url || !file_name) {
                 this.logger.warn('⚠️ Respuesta incompleta de Sora');
@@ -78,7 +79,7 @@ let VideoController = VideoController_1 = class VideoController {
             if (dto.useVoice) {
                 try {
                     this.logger.log('🎤 Generando narración TTS...');
-                    const audioResult = await this.ttsService.generateAudioFromPrompt(improvedPromptString);
+                    const audioResult = await this.ttsService.generateAudioFromPrompt(JSON.stringify(dto.prompt));
                     result.audioUrl = audioResult.blobUrl;
                     result.script = audioResult.script;
                 }
@@ -111,6 +112,12 @@ let VideoController = VideoController_1 = class VideoController {
 };
 exports.VideoController = VideoController;
 __decorate([
+    (0, common_1.Get)('health'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], VideoController.prototype, "checkHealth", null);
+__decorate([
     (0, common_1.Post)('generate'),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.Req)()),
@@ -120,8 +127,7 @@ __decorate([
 ], VideoController.prototype, "generateVideo", null);
 exports.VideoController = VideoController = VideoController_1 = __decorate([
     (0, common_1.Controller)('videos'),
-    __metadata("design:paramtypes", [llm_service_1.LLMService,
-        sora_video_client_service_1.SoraVideoClientService,
+    __metadata("design:paramtypes", [sora_video_client_service_1.SoraVideoClientService,
         azure_tts_service_1.AzureTTSService,
         azure_blob_service_1.AzureBlobService])
 ], VideoController);
