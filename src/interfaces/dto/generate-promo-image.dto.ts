@@ -37,4 +37,11 @@ export class GeneratePromoImageDto {
   @IsOptional()
   @IsBoolean()
   useFlux?: boolean;
+  
+  /**
+   * 📦 Indica si el prompt ya está en formato JSON y no necesita ser mejorado
+   */
+  @IsOptional()
+  @IsBoolean()
+  isJsonPrompt?: boolean;
 }

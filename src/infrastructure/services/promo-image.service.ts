@@ -31,6 +31,7 @@ export class PromoImageService {
     imagePath?: string;
     textOverlay?: string;
     useFlux?: boolean;
+    isJsonPrompt?: boolean; // Add this to handle JSON prompts
   }): Promise<{
     imageUrl: string;
     prompt: string | null;
@@ -38,15 +39,26 @@ export class PromoImageService {
     filename: string;
     plan?: string;
   }> {
-    let { prompt, imagePath, useFlux } = input;
+    let { prompt, imagePath, useFlux, isJsonPrompt } = input;
     let finalPrompt: string | null = null;
 
     if (!prompt && !imagePath) {
       throw new Error('Debe proporcionar un prompt o una ruta de imagen.');
     }
 
-    // Usar el prompt directamente sin mejora
-    if (prompt) {
+    // Process JSON prompt if isJsonPrompt is true
+    if (prompt && isJsonPrompt) {
+      try {
+        // Use LLM to convert JSON prompt to a natural language description
+        finalPrompt = await this.fluxImageService['llmService'].improveImagePrompt(prompt);
+        this.logger.log(`📋 Converted JSON prompt to natural language with LLM: ${finalPrompt}`);
+      } catch (error: any) {
+        this.logger.warn(`⚠️ Failed to convert JSON prompt with LLM, using as-is: ${error.message}`);
+        // If LLM conversion fails, use the prompt as-is
+        finalPrompt = prompt;
+      }
+    } else if (prompt) {
+      // Usar el prompt directamente sin mejora
       finalPrompt = prompt;
     }
 
@@ -54,13 +66,14 @@ export class PromoImageService {
     let azureUrl: string;
     let localFilename: string;
 
-    if (useFlux && prompt) {
+    if (useFlux && finalPrompt) {
       // Usar FLUX-1.1-pro para generar la imagen
       this.logger.log(`🤖 Usando FLUX-1.1-pro para generar imagen para usuario ${userId}`);
       // Create a DTO object instead of just passing a string
       const fluxDto: GenerateFluxImageDto = {
-        prompt: finalPrompt!,
-        plan: 'FREE' // Default plan, you might want to pass this as a parameter
+        prompt: finalPrompt,
+        plan: 'FREE', // Default plan, you might want to pass this as a parameter
+        isJsonPrompt: false // Set to false since we've already processed the JSON prompt
       };
       const fluxResult = await this.fluxImageService.generateImage(fluxDto);
       azureUrl = fluxResult.imageUrl;
@@ -116,8 +129,8 @@ export class PromoImageService {
     fs.copyFileSync(baseImagePath, fallbackPath);
     this.logger.log('🧾 Imagen generada directamente, sin FFmpeg.');
 
-    const uploadedUrl = await this.azureBlobService.uploadToContainer(fallbackPath, 'images');
-    this.logger.log(`✅ Imagen subida a Azure Blob Storage: ${uploadedUrl}`);
+    const uploadedUrl = await this.azureBlobService.uploadToContainerWithSas(fallbackPath, 'images');
+    this.logger.log(`✅ Imagen subida a Azure Blob Storage with SAS: ${uploadedUrl}`);
 
     return {
       azureUrl: uploadedUrl,

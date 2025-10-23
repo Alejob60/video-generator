@@ -53,6 +53,8 @@ export class PromoImageController {
       const result = await this.promoImageService.generateAndNotify(userId, {
         prompt: dto.prompt,
         imagePath: file?.path || undefined,
+        useFlux: dto.useFlux,
+        isJsonPrompt: dto.isJsonPrompt, // Pass the isJsonPrompt parameter
         //textOverlay: dto.textOverlay, // activable si lo implementas
       });
 
