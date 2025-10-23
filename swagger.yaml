@@ -1,0 +1,444 @@
+openapi: 3.0.0
+info:
+  title: Video Generator Microservice API
+  description: API para generación de contenido multimedia (audio, imágenes y videos)
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: Servidor de desarrollo
+
+paths:
+  /status:
+    get:
+      summary: Verificar estado del servicio
+      description: Obtiene el estado básico del microservicio
+      responses:
+        '200':
+          description: Estado del servicio
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: online
+                  timestamp:
+                    type: string
+                    format: date-time
+                  service:
+                    type: string
+                    example: video-generator
+                  version:
+                    type: string
+                    example: 1.0.0
+
+  /health:
+    get:
+      summary: Verificar salud del servicio
+      description: |
+        Verifica la salud del servicio. Por defecto realiza una verificación básica rápida.
+        Para una verificación completa de todos los servicios dependientes, usar el parámetro ?check=full
+      parameters:
+        - name: check
+          in: query
+          description: Tipo de verificación (basic por defecto, full para verificación completa)
+          required: false
+          schema:
+            type: string
+            enum: [basic, full]
+            default: basic
+      responses:
+        '200':
+          description: Estado del servicio
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        example: online
+                      timestamp:
+                        type: string
+                        format: date-time
+                      service:
+                        type: string
+                        example: video-generator
+                      version:
+                        type: string
+                        example: 1.0.0
+                      note:
+                        type: string
+                        example: For full health check, use ?check=full parameter
+                  - type: object
+                    properties:
+                      status:
+                        type: string
+                        example: ok
+                      services:
+                        type: object
+                        properties:
+                          llm:
+                            type: string
+                            example: ok
+                          tts:
+                            type: string
+                            example: fail
+                          sora:
+                            type: string
+                            example: ok
+                          blob:
+                            type: string
+                            example: ok
+                          backend:
+                            type: string
+                            example: ok
+                      timestamp:
+                        type: string
+                        format: date-time
+
+  /audio/generate:
+    post:
+      summary: Generar audio
+      description: Genera audio a partir de un prompt usando Azure TTS
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateAudioDto'
+      responses:
+        '200':
+          description: Audio generado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: 🎧 Audio generado con éxito
+                  result:
+                    type: object
+                    properties:
+                      script:
+                        type: string
+                      duration:
+                        type: number
+                      filename:
+                        type: string
+                      blobUrl:
+                        type: string
+                      generationId:
+                        type: string
+                      userId:
+                        type: string
+                      timestamp:
+                        type: number
+        '400':
+          description: Prompt requerido
+        '500':
+          description: Error interno del servidor
+
+  /media/flux-image:
+    post:
+      summary: Generar imagen con FLUX
+      description: Genera imágenes usando FLUX-1.1-pro
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateFluxImageDto'
+      responses:
+        '200':
+          description: Imagen generada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: ✅ FLUX image generated successfully
+                  data:
+                    type: object
+                    properties:
+                      imageUrl:
+                        type: string
+                      filename:
+                        type: string
+                      userId:
+                        type: string
+                      prompt:
+                        type: string
+        '500':
+          description: Error interno del servidor
+
+  /llm/generate-json:
+    post:
+      summary: Generar prompt JSON para video
+      description: Genera un prompt JSON editable para video
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  type: string
+                  description: El prompt base
+                duration:
+                  type: number
+                  description: Duración del video (opcional)
+                useJson:
+                  type: boolean
+                  description: Usar formato JSON (opcional)
+      responses:
+        '200':
+          description: Prompt JSON generado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Prompt JSON generado
+                  result:
+                    type: object
+                    properties:
+                      promptJson:
+                        type: string
+        '400':
+          description: Prompt inválido
+        '500':
+          description: Error interno del servidor
+
+  /media/image:
+    post:
+      summary: Generar imagen promocional
+      description: Genera imágenes promocionales (puede usar DALL·E o FLUX)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GeneratePromoImageDto'
+      responses:
+        '200':
+          description: Imagen generada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: ✅ Imagen generada correctamente
+                  result:
+                    type: object
+                    properties:
+                      imageUrl:
+                        type: string
+                      filename:
+                        type: string
+        '400':
+          description: Prompt o imagen requeridos
+        '500':
+          description: Error interno del servidor
+
+  /videos/generate:
+    post:
+      summary: Generar video con Sora
+      description: Genera videos usando Sora (solo si useSora=true)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateVideoDto'
+      responses:
+        '200':
+          description: Video generado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: ✅ Video generado y subido exitosamente con Sora
+                  jobId:
+                    type: string
+                  blobUrl:
+                    type: string
+        '400':
+          description: useSora debe ser true
+        '500':
+          description: Error interno del servidor
+
+  /videos/health:
+    get:
+      summary: Verificar salud del servicio de video
+      description: Verifica la salud del servicio Sora
+      responses:
+        '200':
+          description: Estado del servicio
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  sora:
+                    type: boolean
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /videos/generate-full:
+    post:
+      summary: Generar video completo
+      description: Genera videos completos con múltiples elementos (video, audio, subtítulos)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateVideoDto'
+      responses:
+        '200':
+          description: Video generado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Medios generados exitosamente
+                  result:
+                    type: object
+                    properties:
+                      userId:
+                        type: string
+                      timestamp:
+                        type: number
+                      videoUrl:
+                        type: string
+                      duration:
+                        type: number
+                      plan:
+                        type: string
+                      fileName:
+                        type: string
+                      soraJobId:
+                        type: string
+                      generationId:
+                        type: string
+                      audioUrl:
+                        type: string
+                      script:
+                        type: string
+                      audioError:
+                        type: string
+                      subtitles:
+                        type: string
+                      music:
+                        type: string
+                      error:
+                        type: string
+        '400':
+          description: Prompt requerido
+        '500':
+          description: Error interno del servidor
+
+components:
+  schemas:
+    GenerateAudioDto:
+      type: object
+      properties:
+        prompt:
+          type: string
+          description: El texto para generar el audio
+      required:
+        - prompt
+
+    GenerateFluxImageDto:
+      type: object
+      properties:
+        prompt:
+          type: string
+          description: El prompt para generar la imagen
+        size:
+          type: string
+          description: Tamaño de la imagen (ej. "1024x1024")
+        plan:
+          type: string
+          description: Plan del usuario (ej. "FREE")
+      required:
+        - prompt
+
+    GeneratePromoImageDto:
+      type: object
+      properties:
+        prompt:
+          type: string
+          description: El prompt para generar la imagen
+        textOverlay:
+          type: string
+          description: Texto a superponer en la imagen (opcional)
+      required:
+        - prompt
+
+    GenerateVideoDto:
+      type: object
+      properties:
+        prompt:
+          type: string
+          description: El prompt para generar el video
+        n_seconds:
+          type: number
+          description: Duración del video en segundos
+        plan:
+          type: string
+          description: Plan del usuario (free, creator, pro)
+        useSora:
+          type: boolean
+          description: Usar Sora para generar el video
+        useVoice:
+          type: boolean
+          description: Incluir narración de voz
+        useSubtitles:
+          type: boolean
+          description: Incluir subtítulos
+        useMusic:
+          type: boolean
+          description: Incluir música
+      required:
+        - prompt
