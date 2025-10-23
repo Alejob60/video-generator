@@ -53,18 +53,40 @@ const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const uuid_1 = require("uuid");
 const azure_blob_service_1 = require("./azure-blob.service");
+const llm_service_1 = require("./llm.service");
 let FluxImageService = FluxImageService_1 = class FluxImageService {
-    constructor(azureBlobService) {
+    constructor(azureBlobService, llmService) {
         this.azureBlobService = azureBlobService;
+        this.llmService = llmService;
         this.logger = new common_1.Logger(FluxImageService_1.name);
         this.endpoint = 'https://labsc-m9j5kbl9-eastus2.services.ai.azure.com/openai/deployments/FLUX-1.1-pro/images/generations';
         this.apiVersion = '2025-04-01-preview';
         this.apiKey = process.env.FLUX_API_KEY || '';
         this.backendUrl = process.env.MAIN_BACKEND_URL;
     }
+    async generateFromPromoDto(dto) {
+        const prompt = await this.llmService.generateFluxPrompt(dto);
+        const result = await this.generateImage({
+            prompt,
+            negative_prompt: "humans, people, cartoon, anime style, low quality, blurry, text, watermark",
+            size: '1024x1024',
+            plan: dto.plan
+        });
+        return result.imageUrl;
+    }
     async generateImageAndNotify(userId, dto) {
         let finalPrompt = dto.prompt;
-        this.logger.log(`📋 Using prompt as-is: ${finalPrompt}`);
+        if (dto.isJsonPrompt) {
+            try {
+                finalPrompt = await this.llmService.improveImagePrompt(dto.prompt);
+                this.logger.log(`📋 Converted JSON prompt to natural language with LLM: ${finalPrompt}`);
+            }
+            catch (error) {
+                this.logger.warn(`⚠️ Failed to convert JSON prompt with LLM, using as-is: ${error.message}`);
+                finalPrompt = dto.prompt;
+            }
+        }
+        this.logger.log(`📋 Using prompt: ${finalPrompt}`);
         const url = `${this.endpoint}?api-version=${this.apiVersion}`;
         const payload = {
             prompt: finalPrompt,
@@ -101,9 +123,9 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
             if (imageData.url) {
                 this.logger.log(`🌐 Image URL provided by FLUX: ${imageData.url}`);
                 filename = `flux-image-${(0, uuid_1.v4)()}.png`;
-                this.logger.log(`📤 Uploading image from URL to Azure Blob Storage`);
-                blobUrl = await this.azureBlobService.uploadFileFromUrl(imageData.url, `images/${filename}`);
-                this.logger.log(`✅ Image uploaded to Azure Blob Storage from URL: ${blobUrl}`);
+                this.logger.log(`📤 Uploading image from URL to Azure Blob Storage with SAS`);
+                blobUrl = await this.azureBlobService.uploadFileFromUrlWithSas(imageData.url, `images/${filename}`);
+                this.logger.log(`✅ Image uploaded to Azure Blob Storage from URL with SAS: ${blobUrl}`);
             }
             else if (imageData.b64_json) {
                 this.logger.log(`ülü Base64 data provided by FLUX, length: ${imageData.b64_json.length}`);
@@ -132,9 +154,9 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
                 this.logger.log(`🔍 Verification buffer size: ${verifyBuffer.length} bytes`);
                 const verifyPngHeader = verifyBuffer.slice(0, 8);
                 this.logger.log(`🔍 Verification PNG header bytes: ${verifyPngHeader.toString('hex').toUpperCase()}`);
-                this.logger.log(`📤 Uploading image to Azure Blob Storage`);
-                blobUrl = await this.azureBlobService.uploadFileToBlob(tempPath, `images/${filename}`, 'image/png');
-                this.logger.log(`✅ Image uploaded to Azure Blob Storage: ${blobUrl}`);
+                this.logger.log(`📤 Uploading image to Azure Blob Storage with SAS`);
+                blobUrl = await this.azureBlobService.uploadFileToBlobWithSas(tempPath, `images/${filename}`, 'image/png');
+                this.logger.log(`✅ Image uploaded to Azure Blob Storage with SAS: ${blobUrl}`);
                 this.logger.log(`💾 Keeping temporary file in temp folder: ${tempPath}`);
             }
             else {
@@ -164,7 +186,17 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
     }
     async generateImage(dto) {
         let finalPrompt = dto.prompt;
-        this.logger.log(`📋 Using prompt as-is: ${finalPrompt}`);
+        if (dto.isJsonPrompt) {
+            try {
+                finalPrompt = await this.llmService.improveImagePrompt(dto.prompt);
+                this.logger.log(`📋 Converted JSON prompt to natural language with LLM: ${finalPrompt}`);
+            }
+            catch (error) {
+                this.logger.warn(`⚠️ Failed to convert JSON prompt with LLM, using as-is: ${error.message}`);
+                finalPrompt = dto.prompt;
+            }
+        }
+        this.logger.log(`📋 Using prompt: ${finalPrompt}`);
         const url = `${this.endpoint}?api-version=${this.apiVersion}`;
         const payload = {
             prompt: finalPrompt,
@@ -201,9 +233,9 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
             if (imageData.url) {
                 this.logger.log(`🌐 Image URL provided by FLUX: ${imageData.url}`);
                 filename = `flux-image-${(0, uuid_1.v4)()}.png`;
-                this.logger.log(`📤 Uploading image from URL to Azure Blob Storage`);
-                blobUrl = await this.azureBlobService.uploadFileFromUrl(imageData.url, `images/${filename}`);
-                this.logger.log(`✅ Image uploaded to Azure Blob Storage from URL: ${blobUrl}`);
+                this.logger.log(`📤 Uploading image from URL to Azure Blob Storage with SAS`);
+                blobUrl = await this.azureBlobService.uploadFileFromUrlWithSas(imageData.url, `images/${filename}`);
+                this.logger.log(`✅ Image uploaded to Azure Blob Storage from URL with SAS: ${blobUrl}`);
             }
             else if (imageData.b64_json) {
                 this.logger.log(`ülü Base64 data provided by FLUX, length: ${imageData.b64_json.length}`);
@@ -232,9 +264,9 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
                 this.logger.log(`🔍 Verification buffer size: ${verifyBuffer.length} bytes`);
                 const verifyPngHeader = verifyBuffer.slice(0, 8);
                 this.logger.log(`🔍 Verification PNG header bytes: ${verifyPngHeader.toString('hex').toUpperCase()}`);
-                this.logger.log(`📤 Uploading image to Azure Blob Storage`);
-                blobUrl = await this.azureBlobService.uploadFileToBlob(tempPath, `images/${filename}`, 'image/png');
-                this.logger.log(`✅ Image uploaded to Azure Blob Storage: ${blobUrl}`);
+                this.logger.log(`📤 Uploading image to Azure Blob Storage with SAS`);
+                blobUrl = await this.azureBlobService.uploadFileToBlobWithSas(tempPath, `images/${filename}`, 'image/png');
+                this.logger.log(`✅ Image uploaded to Azure Blob Storage with SAS: ${blobUrl}`);
                 this.logger.log(`💾 Keeping temporary file in temp folder: ${tempPath}`);
             }
             else {
@@ -250,10 +282,80 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
             throw new Error(`Failed to generate image with FLUX: ${error.message || error}`);
         }
     }
+    convertJsonToNaturalLanguage(jsonPrompt) {
+        if (typeof jsonPrompt === 'string') {
+            try {
+                jsonPrompt = JSON.parse(jsonPrompt);
+            }
+            catch (e) {
+                return jsonPrompt;
+            }
+        }
+        if (jsonPrompt.scene_description && jsonPrompt.visual_elements) {
+            let description = jsonPrompt.scene_description || '';
+            if (jsonPrompt.visual_elements && Array.isArray(jsonPrompt.visual_elements)) {
+                description += ` Featuring: ${jsonPrompt.visual_elements.join(', ')}.`;
+            }
+            if (jsonPrompt.style) {
+                description += ` Style: ${jsonPrompt.style}.`;
+            }
+            if (jsonPrompt.mood) {
+                description += ` Mood: ${jsonPrompt.mood}.`;
+            }
+            if (jsonPrompt.color_palette && Array.isArray(jsonPrompt.color_palette)) {
+                description += ` Color palette: ${jsonPrompt.color_palette.join(', ')}.`;
+            }
+            if (jsonPrompt.composition) {
+                description += ` Composition: ${jsonPrompt.composition}.`;
+            }
+            if (jsonPrompt.lighting) {
+                description += ` Lighting: ${jsonPrompt.lighting}.`;
+            }
+            if (jsonPrompt.details) {
+                description += ` Details: ${jsonPrompt.details}.`;
+            }
+            return description;
+        }
+        else if (jsonPrompt.scene && jsonPrompt.characters) {
+            let description = `Scene: ${jsonPrompt.scene}. `;
+            if (jsonPrompt.characters && Array.isArray(jsonPrompt.characters)) {
+                description += `Characters: ${jsonPrompt.characters.join(', ')}. `;
+            }
+            if (jsonPrompt.camera) {
+                description += `Camera: ${jsonPrompt.camera}. `;
+            }
+            if (jsonPrompt.lighting) {
+                description += `Lighting: ${jsonPrompt.lighting}. `;
+            }
+            if (jsonPrompt.style) {
+                description += `Style: ${jsonPrompt.style}. `;
+            }
+            if (jsonPrompt.interactionFocus) {
+                description += `Focus: ${jsonPrompt.interactionFocus}.`;
+            }
+            return description;
+        }
+        else {
+            const parts = [];
+            for (const [key, value] of Object.entries(jsonPrompt)) {
+                if (typeof value === 'string') {
+                    parts.push(`${key}: ${value}`);
+                }
+                else if (Array.isArray(value)) {
+                    parts.push(`${key}: ${value.join(', ')}`);
+                }
+                else if (typeof value === 'object' && value !== null) {
+                    parts.push(`${key}: ${JSON.stringify(value)}`);
+                }
+            }
+            return parts.join('. ');
+        }
+    }
 };
 exports.FluxImageService = FluxImageService;
 exports.FluxImageService = FluxImageService = FluxImageService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [azure_blob_service_1.AzureBlobService])
+    __metadata("design:paramtypes", [azure_blob_service_1.AzureBlobService,
+        llm_service_1.LLMService])
 ], FluxImageService);
 //# sourceMappingURL=flux-image.service.js.map

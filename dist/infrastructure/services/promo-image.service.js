@@ -66,21 +66,32 @@ let PromoImageService = PromoImageService_1 = class PromoImageService {
         });
     }
     async generateAndNotify(userId, input) {
-        let { prompt, imagePath, useFlux } = input;
+        let { prompt, imagePath, useFlux, isJsonPrompt } = input;
         let finalPrompt = null;
         if (!prompt && !imagePath) {
             throw new Error('Debe proporcionar un prompt o una ruta de imagen.');
         }
-        if (prompt) {
+        if (prompt && isJsonPrompt) {
+            try {
+                finalPrompt = await this.fluxImageService['llmService'].improveImagePrompt(prompt);
+                this.logger.log(`📋 Converted JSON prompt to natural language with LLM: ${finalPrompt}`);
+            }
+            catch (error) {
+                this.logger.warn(`⚠️ Failed to convert JSON prompt with LLM, using as-is: ${error.message}`);
+                finalPrompt = prompt;
+            }
+        }
+        else if (prompt) {
             finalPrompt = prompt;
         }
         let azureUrl;
         let localFilename;
-        if (useFlux && prompt) {
+        if (useFlux && finalPrompt) {
             this.logger.log(`🤖 Usando FLUX-1.1-pro para generar imagen para usuario ${userId}`);
             const fluxDto = {
                 prompt: finalPrompt,
-                plan: 'FREE'
+                plan: 'FREE',
+                isJsonPrompt: false
             };
             const fluxResult = await this.fluxImageService.generateImage(fluxDto);
             azureUrl = fluxResult.imageUrl;
@@ -124,8 +135,8 @@ let PromoImageService = PromoImageService_1 = class PromoImageService {
         const fallbackPath = path.join(outputDir, fallbackName);
         fs.copyFileSync(baseImagePath, fallbackPath);
         this.logger.log('🧾 Imagen generada directamente, sin FFmpeg.');
-        const uploadedUrl = await this.azureBlobService.uploadToContainer(fallbackPath, 'images');
-        this.logger.log(`✅ Imagen subida a Azure Blob Storage: ${uploadedUrl}`);
+        const uploadedUrl = await this.azureBlobService.uploadToContainerWithSas(fallbackPath, 'images');
+        this.logger.log(`✅ Imagen subida a Azure Blob Storage with SAS: ${uploadedUrl}`);
         return {
             azureUrl: uploadedUrl,
             localFilename: fallbackName,

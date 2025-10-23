@@ -45,8 +45,8 @@ var ServiceBusService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ServiceBusService = void 0;
 const common_1 = require("@nestjs/common");
-const service_bus_1 = require("@azure/service-bus");
 const config_1 = require("@nestjs/config");
+const service_bus_1 = require("@azure/service-bus");
 const util = __importStar(require("util"));
 let ServiceBusService = ServiceBusService_1 = class ServiceBusService {
     constructor(configService) {
@@ -58,8 +58,8 @@ let ServiceBusService = ServiceBusService_1 = class ServiceBusService {
             throw new Error('❌ AZURE_SERVICE_BUS_CONNECTION no está definida');
         }
         this.sbClient = new service_bus_1.ServiceBusClient(connStr);
-        const videoQueue = this.configService.get('AZURE_SERVICE_BUS_QUEUE');
-        const imageQueue = this.configService.get('AZURE_SERVICE_BUS_QUEUE_IMAGE');
+        const videoQueue = this.configService.get('AZURE_SERVICE_BUS_QUEUE') || 'video';
+        const imageQueue = this.configService.get('AZURE_SERVICE_BUS_QUEUE_IMAGE') || 'imagen';
         if (videoQueue) {
             this.senders['video'] = this.sbClient.createSender(videoQueue);
         }
@@ -74,6 +74,11 @@ let ServiceBusService = ServiceBusService_1 = class ServiceBusService {
         const messageBody = {
             jobId,
             audioId: timestamp,
+            script: metadata.script || '',
+            prompt: metadata.prompt || '',
+            n_seconds: metadata.n_seconds || 20,
+            narration: metadata.narration ?? false,
+            subtitles: metadata.subtitles ?? false,
             ...metadata,
         };
         try {

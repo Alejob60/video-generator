@@ -1,16 +1,6 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleInit,
-  OnModuleDestroy,
-} from '@nestjs/common';
-import {
-  ServiceBusClient,
-  ServiceBusReceiver,
-  ServiceBusReceivedMessage,
-  ProcessErrorArgs,
-} from '@azure/service-bus';
-import { VideoService } from '../services/video.service';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { ServiceBusClient, ServiceBusReceiver, ServiceBusReceivedMessage, ProcessErrorArgs } from '@azure/service-bus';
+import { VideoService } from './video.service';
 import { QueueVideoMessage } from '../../types/queue-message.interface';
 import { safeErrorMessage } from '../../common/utils/error.util';
 
@@ -20,7 +10,7 @@ export class VideoQueueConsumerService implements OnModuleInit, OnModuleDestroy 
   private receiver!: ServiceBusReceiver;
   private sbClient!: ServiceBusClient;
   private readonly connectionString = process.env.AZURE_SERVICE_BUS_CONNECTION;
-  private readonly queueName = process.env.AZURE_SERVICE_BUS_QUEUE || 'video-processing-queue';
+  private readonly queueName = process.env.AZURE_SERVICE_BUS_QUEUE || 'video';
 
   constructor(private readonly videoService: VideoService) {}
 
@@ -62,34 +52,53 @@ export class VideoQueueConsumerService implements OnModuleInit, OnModuleDestroy 
         setTimeout(() => this.handleMessageWithRetry(message, attempt + 1), 2000);
       } else {
         this.logger.error(`❌ Fallo definitivo al procesar mensaje: ${msg}`);
-        await this.receiver.deadLetterMessage(message, {
-          deadLetterReason: 'ProcessingFailed',
-          deadLetterErrorDescription: msg,
-        });
+        // En lugar de deadLetterMessage, solo completamos el mensaje para evitar que se procese repetidamente
+        try {
+          await this.receiver.completeMessage(message);
+        } catch (completionError) {
+          this.logger.error(`❌ Error al completar mensaje fallido: ${safeErrorMessage(completionError)}`);
+        }
       }
     }
   }
 
   private async handleMessage(message: ServiceBusReceivedMessage): Promise<void> {
-    const data = message.body as QueueVideoMessage;
-
-    if (!data?.jobId || !data?.audioId || !data?.script) {
-      throw new Error('❌ Mensaje inválido: Faltan campos requeridos.');
+    let data: QueueVideoMessage;
+    
+    try {
+      data = message.body as QueueVideoMessage;
+    } catch (parseError) {
+      throw new Error(`❌ No se pudo parsear el mensaje: ${safeErrorMessage(parseError)}`);
     }
+
+    // Validación más flexible de campos requeridos
+    if (!data?.jobId) {
+      throw new Error('❌ Mensaje inválido: Falta jobId requerido.');
+    }
+
+    // Valores por defecto para campos opcionales
+    const audioId = data.audioId || Date.now();
+    const script = data.script || '';
+    const narration = data.narration ?? false;
+    const subtitles = data.subtitles ?? false;
+    const n_seconds = data.n_seconds ?? 20;
+    const prompt = data.prompt || '';
 
     this.logger.log(`📨 Mensaje recibido:
 🆔 Job ID: ${data.jobId}
-🎧 Audio ID: ${data.audioId}
-🧠 Narración: ${data.narration}
-💬 Subtítulos: ${data.subtitles}
-⏱️ Duración: ${data.n_seconds}`);
+🎧 Audio ID: ${audioId}
+🧠 Prompt: ${prompt}
+📝 Script: ${script}
+🔊 Narración: ${narration}
+💬 Subtítulos: ${subtitles}
+⏱️ Duración: ${n_seconds}`);
 
-    await this.videoService.processGeneratedAssets(data.jobId, data.audioId, {
-      script: data.script,
-      narration: data.narration ?? false,
-      subtitles: data.subtitles ?? false,
-      n_seconds: data.n_seconds ?? 20,
-      prompt: data.prompt ?? '',
+    await this.videoService.processGeneratedAssets(data.jobId, audioId, {
+      script,
+      narration,
+      subtitles,
+      n_seconds,
+      prompt,
     });
 
     this.logger.log(`✅ Procesamiento exitoso para jobId=${data.jobId}`);

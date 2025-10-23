@@ -142,9 +142,9 @@ let SoraService = SoraService_1 = class SoraService {
         });
         fs.writeFileSync(tempPath, response.data);
         this.logger.log('📦 Video descargado localmente.');
-        const blobUrl = await this.azureBlobService.uploadFileToBlob(tempPath, filename, 'video/mp4');
+        const blobUrl = await this.azureBlobService.uploadFileToBlobWithSas(tempPath, filename, 'video/mp4');
         fs.unlinkSync(tempPath);
-        this.logger.log(`☁️ Video subido a Azure Blob: ${blobUrl}`);
+        this.logger.log(`☁️ Video subido a Azure Blob with SAS: ${blobUrl}`);
         return blobUrl;
     }
     async generateAndUploadVideo(prompt, duration) {

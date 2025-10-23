@@ -1,0 +1,27 @@
+# Ejemplos de comandos curl para probar el endpoint /media/image
+
+# Prueba 1: Generar imagen con prompt
+curl -X POST "http://localhost:4000/media/image" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "prompt": "Un hermoso paisaje montañoso al atardecer con ríos y bosques",
+  "plan": "FREE"
+}'
+
+# Prueba 2: Generar imagen con FLUX
+curl -X POST "http://localhost:4000/media/image" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "prompt": "Un robot futurista en un entorno cyberpunk",
+  "plan": "FREE",
+  "useFlux": true
+}'
+
+# Prueba 3: Generar imagen con texto superpuesto
+curl -X POST "http://localhost:4000/media/image" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "prompt": "Una hamburguesa gourmet con ingredientes frescos",
+  "textOverlay": "¡Oferta Especial!",
+  "plan": "CREATOR"
+}'

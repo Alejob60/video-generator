@@ -1,0 +1,65 @@
+# Azure pipeline para despliegue de la aplicación Node.js
+trigger:
+- main
+
+variables:
+  # Variables del entorno de Azure
+  azureSubscription: 'Patrocinio de Microsoft Azure'
+  appName: 'video-converter'
+  resourceGroupName: 'realculture-rg'
+  location: 'Canada Central'
+  nodeVersion: '20.x'
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: Build
+  displayName: 'Build Stage'
+  jobs:
+  - job: Build
+    displayName: 'Build Job'
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '$(nodeVersion)'
+      displayName: 'Install Node.js'
+
+    - script: |
+        npm install
+        npm run build --if-present
+      displayName: 'npm install and build'
+
+    - task: ArchiveFiles@2
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)'
+        includeRootFolder: false
+        archiveType: 'zip'
+        archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+        replaceExistingArchive: true
+
+    - upload: $(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip
+      artifact: drop
+
+- stage: Deploy
+  displayName: 'Deploy Stage'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: Deployment
+    displayName: 'Deploy to Azure App Service'
+    environment: 'production'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureWebApp@1
+            inputs:
+              azureSubscription: '$(azureSubscription)'
+              appType: 'webApp'
+              appName: '$(appName)'
+              resourceGroupName: '$(resourceGroupName)'
+              package: '$(Pipeline.Workspace)/drop/$(Build.BuildId).zip'
+              startUpCommand: 'npm run start:prod'

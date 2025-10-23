@@ -34,4 +34,9 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], GenerateFluxImageDto.prototype, "isJsonPrompt", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], GenerateFluxImageDto.prototype, "negative_prompt", void 0);
 //# sourceMappingURL=generate-flux-image.dto.js.map

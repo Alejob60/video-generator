@@ -11,9 +11,12 @@ export declare class AzureBlobService {
     private getContainerNameFromPath;
     uploadFile(data: Buffer | string, blobPath: string): Promise<string>;
     uploadFileFromPath(filePath: string, filename: string): Promise<string>;
+    uploadToContainerWithSas(filePath: string, containerName: string, blobName?: string, durationSeconds?: number): Promise<string>;
     uploadToContainer(filePath: string, containerName: string, blobName?: string): Promise<string>;
     uploadFileToBlob(filePath: string, fileName: string, mimeType?: string): Promise<string>;
     uploadFileFromUrl(url: string, filename: string): Promise<string>;
     copyBlobFromUrl(sourceUrl: string, filename: string): Promise<string>;
+    uploadFileToBlobWithSas(filePath: string, fileName: string, mimeType?: string, durationSeconds?: number): Promise<string>;
+    uploadFileFromUrlWithSas(url: string, filename: string, durationSeconds?: number): Promise<string>;
     generateSasUrl(blobName: string, durationSeconds: number): Promise<string>;
 }

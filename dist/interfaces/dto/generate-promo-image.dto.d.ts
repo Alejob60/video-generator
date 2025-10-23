@@ -3,4 +3,5 @@ export declare class GeneratePromoImageDto {
     textOverlay?: string;
     plan: 'FREE' | 'CREATOR' | 'PRO';
     useFlux?: boolean;
+    isJsonPrompt?: boolean;
 }

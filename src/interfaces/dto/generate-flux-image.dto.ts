@@ -33,4 +33,12 @@ export class GenerateFluxImageDto {
   @IsOptional()
   @IsBoolean()
   isJsonPrompt?: boolean;
+
+  /**
+   * 🚫 Prompt negativo para excluir elementos de la imagen
+   * Ejemplo: "blurry, low quality, text, watermark"
+   */
+  @IsOptional()
+  @IsString()
+  negative_prompt?: string;
 }

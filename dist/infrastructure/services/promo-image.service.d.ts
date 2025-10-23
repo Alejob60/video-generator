@@ -16,6 +16,7 @@ export declare class PromoImageService {
         imagePath?: string;
         textOverlay?: string;
         useFlux?: boolean;
+        isJsonPrompt?: boolean;
     }): Promise<{
         imageUrl: string;
         prompt: string | null;

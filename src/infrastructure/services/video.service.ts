@@ -1,26 +1,40 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
 import axios from 'axios';
-import fs from 'fs';
-import path from 'path';
-import { VideoGenerationOptions } from '../../types/video-generation-options';
 import { ServiceBusService } from './service-bus.service';
 import { AzureBlobService } from './azure-blob.service';
-import { safeErrorMessage } from '../../common/utils/error.util';
 import { GenerateVideoDto } from '../../interfaces/dto/generate-video.dto';
+
+// Aseguramos que el directorio public exista
+const publicDir = path.resolve(__dirname, '../../../public');
+if (!fs.existsSync(publicDir)) {
+  fs.mkdirSync(publicDir, { recursive: true });
+}
 
 @Injectable()
 export class VideoService {
   private readonly logger = new Logger(VideoService.name);
   private readonly soraEndpoint = process.env.AZURE_SORA_URL!;
   private readonly apiKey = process.env.AZURE_SORA_API_KEY!;
-  private readonly soraApiVersion = process.env.AZURE_SORA_API_VERSION!;
-  private readonly ttsUrl = process.env.AZURE_TTS_URL!;
-  private readonly ttsVoice = 'nova';
+  private readonly soraApiVersion = process.env.AZURE_SORA_API_VERSION || '2025-02-15-preview';
+  private readonly ttsUrl = process.env.AZURE_TTS_ENDPOINT || 'https://labsc-m9j5kbl9-eastus2.cognitiveservices.azure.com';
+  private readonly ttsKey = process.env.AZURE_TTS_KEY || process.env.AZURE_OPENAI_KEY;
+  private readonly ttsVoice = process.env.AZURE_TTS_VOICE || 'nova';
 
   constructor(
-    @Inject(ServiceBusService) private readonly bus: ServiceBusService,
+    private readonly bus: ServiceBusService,
     private readonly azureBlobService: AzureBlobService,
-  ) {}
+  ) {
+    // Creamos los directorios necesarios
+    const dirs = ['videos', 'audio', 'subtitles'];
+    dirs.forEach(dir => {
+      const dirPath = path.join(publicDir, dir);
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+    });
+  }
 
   private buildPath(type: 'video' | 'audio' | 'subtitles', timestamp: number): string {
     const base = path.resolve(__dirname, '../../../public');
@@ -64,10 +78,13 @@ export class VideoService {
       const jobId = data.id;
       this.logger.log(`📨 Job enviado a Sora con ID: ${jobId}`);
 
+      // Enviamos mensaje a la cola con todos los campos requeridos
       await this.bus.sendVideoJobMessage(jobId, Date.now(), {
         script: JSON.stringify(dto.prompt),
-        narration: dto.useVoice,
-        subtitles: dto.useSubtitles,
+        prompt: JSON.stringify(dto.prompt),
+        n_seconds: dto.n_seconds || 5,
+        narration: dto.useVoice || false,
+        subtitles: dto.useSubtitles || false,
       });
 
       return { jobId, timestamp: Date.now() };
@@ -198,28 +215,33 @@ export class VideoService {
   }
 
   private async downloadTTS(text: string, targetPath: string): Promise<void> {
-    const response = await axios.post(
-      this.ttsUrl,
-      {
-        model: 'gpt-4o-mini-tts',
-        input: text,
-        voice: this.ttsVoice,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
+    try {
+      const response = await axios.post(
+        `${this.ttsUrl}/openai/deployments/gpt-4o-mini-tts/audio/speech?api-version=2025-03-01-preview`,
+        {
+          model: 'gpt-4o-mini-tts',
+          input: text,
+          voice: this.ttsVoice,
         },
-        responseType: 'stream',
-      },
-    );
+        {
+          headers: {
+            'api-key': this.ttsKey,
+            'Content-Type': 'application/json',
+          },
+          responseType: 'stream',
+        },
+      );
 
-    const writer = fs.createWriteStream(targetPath);
-    return new Promise((resolve, reject) => {
-      response.data.pipe(writer);
-      writer.on('finish', resolve);
-      writer.on('error', reject);
-    });
+      const writer = fs.createWriteStream(targetPath);
+      return new Promise((resolve, reject) => {
+        response.data.pipe(writer);
+        writer.on('finish', resolve);
+        writer.on('error', reject);
+      });
+    } catch (error) {
+      this.logger.error(`❌ Error al generar audio TTS: ${safeErrorMessage(error)}`);
+      throw error;
+    }
   }
 
   private generateSubtitles(script: string, subtitlePath: string): void {
@@ -247,4 +269,12 @@ export class VideoService {
       generationId: data.generations?.[0]?.id,
     };
   }
+}
+
+// Función auxiliar para manejo seguro de errores
+function safeErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
 }

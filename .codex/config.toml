@@ -1,0 +1,9 @@
+model = "gpt-5-codex"  # Replace with your actual Azure model deployment name
+model_provider = "azure"
+model_reasoning_effort = "medium"
+
+[model_providers.azure]
+name = "Azure OpenAI"
+base_url = "https://labsc-m9j5kbl9-eastus2.cognitiveservices.azure.com/openai/responses?api-version=2025-04-01-preview"
+env_key = "7PAsgxvIw4v494OveKjy4izsjqpXUp6gCCJOMBZkeT0AYA4zKNpSJQQJ99BDACHYHv6XJ3w3AAAAACOGQKWS"
+wire_api = "responses"

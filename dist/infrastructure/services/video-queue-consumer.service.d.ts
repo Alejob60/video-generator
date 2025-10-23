@@ -1,5 +1,5 @@
-import { OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { VideoService } from '../services/video.service';
+import { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { VideoService } from './video.service';
 export declare class VideoQueueConsumerService implements OnModuleInit, OnModuleDestroy {
     private readonly videoService;
     private readonly logger;

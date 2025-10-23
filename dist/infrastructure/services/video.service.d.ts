@@ -9,6 +9,7 @@ export declare class VideoService {
     private readonly apiKey;
     private readonly soraApiVersion;
     private readonly ttsUrl;
+    private readonly ttsKey;
     private readonly ttsVoice;
     constructor(bus: ServiceBusService, azureBlobService: AzureBlobService);
     private buildPath;

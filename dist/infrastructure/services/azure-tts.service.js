@@ -48,15 +48,17 @@ var AzureTTSService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AzureTTSService = void 0;
 const common_1 = require("@nestjs/common");
-const axios_1 = __importDefault(require("axios"));
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const uuid_1 = require("uuid");
+const axios_1 = __importDefault(require("axios"));
 const get_audio_duration_1 = require("get-audio-duration");
 const azure_blob_service_1 = require("./azure-blob.service");
+const llm_service_1 = require("./llm.service");
 let AzureTTSService = AzureTTSService_1 = class AzureTTSService {
-    constructor(blobService) {
+    constructor(blobService, llmService) {
         this.blobService = blobService;
+        this.llmService = llmService;
         this.logger = new common_1.Logger(AzureTTSService_1.name);
         this.apiUrl = `${process.env.AZURE_TTS_ENDPOINT}/openai/deployments/${process.env.AZURE_TTS_DEPLOYMENT}/audio/speech?api-version=${process.env.AZURE_TTS_API_VERSION}`;
         this.apiKey = process.env.AZURE_TTS_KEY;
@@ -64,6 +66,16 @@ let AzureTTSService = AzureTTSService_1 = class AzureTTSService {
         this.model = 'gpt-4o-mini-tts';
     }
     async generateAudioFromPrompt(prompt) {
+        let improvedScript = prompt;
+        try {
+            this.logger.log(`📝 Mejorando script para narración promocional...`);
+            const narrativeResult = await this.llmService.generateNarrativeScript(prompt, 30, 'promotional');
+            improvedScript = narrativeResult.script;
+            this.logger.log(`✅ Script mejorado: ${improvedScript}`);
+        }
+        catch (error) {
+            this.logger.warn(`⚠️ Error mejorando script, usando prompt original: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+        }
         const filename = `audio-${(0, uuid_1.v4)()}.mp3`;
         const localDir = path.join(__dirname, '../../../public/audio');
         const localPath = path.join(localDir, filename);
@@ -73,7 +85,7 @@ let AzureTTSService = AzureTTSService_1 = class AzureTTSService {
             this.logger.log(`📡 Enviando texto a Azure TTS...`);
             const payload = {
                 model: this.model,
-                input: prompt,
+                input: improvedScript,
                 voice: this.voice,
             };
             const response = await axios_1.default.post(this.apiUrl, payload, {
@@ -95,7 +107,7 @@ let AzureTTSService = AzureTTSService_1 = class AzureTTSService {
             fs.unlinkSync(localPath);
             this.logger.log(`✅ Audio generado y subido correctamente`);
             return {
-                script: prompt,
+                script: improvedScript,
                 duration,
                 filename,
                 blobUrl,
@@ -129,6 +141,7 @@ let AzureTTSService = AzureTTSService_1 = class AzureTTSService {
 exports.AzureTTSService = AzureTTSService;
 exports.AzureTTSService = AzureTTSService = AzureTTSService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [azure_blob_service_1.AzureBlobService])
+    __metadata("design:paramtypes", [azure_blob_service_1.AzureBlobService,
+        llm_service_1.LLMService])
 ], AzureTTSService);
 //# sourceMappingURL=azure-tts.service.js.map

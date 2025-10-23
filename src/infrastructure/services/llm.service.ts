@@ -27,15 +27,27 @@ export class LLMService {
     const wordLimitMap: Record<number, number> = { 20: 45, 30: 70, 60: 140 };
     const wordLimit = wordLimitMap[duration] || 60;
 
+    // Prompt mejorado para contenido promocional
     const systemPrompt = `
-Eres un experto en guiones sonoros y narración viral para redes sociales.
-Genera un libreto emocional, conciso y fácil de recordar para narración en voz, dirigido a la audiencia general.
-Incluye: introducción que capture la atención, desarrollo con detalles atractivos, y un cierre memorable.
-Mantén máximo ${wordLimit} palabras.
-Devuelve exactamente este JSON:
+Eres un experto en copywriting y narración promocional para videos de redes sociales.
+Tu tarea es convertir el prompt de entrada en un guion de narración efectivo que:
+
+1. Capture atención inmediata (primeras 3 palabras deben ser impactantes)
+2. Explique el concepto de forma clara y concisa
+3. Cree un llamado a la acción implícito
+4. Sea fácil de narrar con entusiasmo
+5. Mantenga un tono promocional pero auténtico
+
+Estructura tu respuesta como:
 {
-  "script": "Texto aquí"
+  "script": "Texto narrativo optimizado para TTS"
 }
+
+${intent === 'promotional' ? 
+  'Enfoque: Crea un mensaje promocional convincente que invite a la acción.' : 
+  'Enfoque: Crea un mensaje informativo claro y atractivo.'}
+
+Mantén el script entre ${Math.max(30, wordLimit-20)}-${wordLimit+20} palabras para una duración de ${duration} segundos.
 `.trim();
 
     const body = {
@@ -55,7 +67,16 @@ Devuelve exactamente este JSON:
 
       const raw = response?.data?.choices?.[0]?.message?.content?.trim();
       if (!raw) throw new Error('❌ Respuesta vacía del modelo');
-      const parsed = JSON.parse(raw);
+      
+      // Intentar parsear como JSON primero
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        // Si no es JSON, asumir que es texto plano
+        parsed = { script: raw.replace(/^["']|["']$/g, '') }; // Remover comillas si las tiene
+      }
+      
       if (!parsed?.script) throw new Error('❌ Campo "script" no encontrado');
       this.logger.log('✅ Libreto generado correctamente');
       return parsed;
@@ -232,5 +253,13 @@ Devuelve solo el prompt mejorado, listo para generar música.
       this.logger.error('❌ Error mejorando prompt:', error);
       throw error;
     }
+  }
+
+  async generateFluxPrompt(dto: any): Promise<string> {
+    return `
+Two realistic cats dressed as Naruto characters, detailed costumes with headbands and village symbols, photorealistic style, vibrant colors including orange, blue, black, silver, natural fur textures, soft diffused lighting highlighting details, neutral ninja-themed background, medium shot with both cats centered, one slightly in front, direct gaze at camera, hyperrealistic photography, high resolution, professional image quality.
+
+Negative prompt: humans, people, cartoon, anime style, low quality, blurry, text, watermark
+`;
   }
 }

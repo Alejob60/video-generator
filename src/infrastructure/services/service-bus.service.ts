@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { ServiceBusClient, ServiceBusSender } from '@azure/service-bus';
 import { ConfigService } from '@nestjs/config';
+import { ServiceBusClient, ServiceBusSender } from '@azure/service-bus';
 import * as util from 'util';
 
 @Injectable()
@@ -19,8 +19,8 @@ export class ServiceBusService implements OnModuleDestroy {
     this.sbClient = new ServiceBusClient(connStr);
 
     // Inicializa los senders según las colas disponibles
-    const videoQueue = this.configService.get<string>('AZURE_SERVICE_BUS_QUEUE');
-    const imageQueue = this.configService.get<string>('AZURE_SERVICE_BUS_QUEUE_IMAGE');
+    const videoQueue = this.configService.get<string>('AZURE_SERVICE_BUS_QUEUE') || 'video';
+    const imageQueue = this.configService.get<string>('AZURE_SERVICE_BUS_QUEUE_IMAGE') || 'imagen';
 
     if (videoQueue) {
       this.senders['video'] = this.sbClient.createSender(videoQueue);
@@ -40,16 +40,22 @@ export class ServiceBusService implements OnModuleDestroy {
       throw new Error('❌ Cola de video no está configurada correctamente');
     }
 
+    // Aseguramos que todos los campos requeridos estén presentes
     const messageBody = {
       jobId,
       audioId: timestamp,
+      script: metadata.script || '',
+      prompt: metadata.prompt || '',
+      n_seconds: metadata.n_seconds || 20,
+      narration: metadata.narration ?? false,
+      subtitles: metadata.subtitles ?? false,
       ...metadata,
     };
 
     try {
       await this.senders['video'].sendMessages({
         body: messageBody,
-        timeToLive: 1000 * 60 * 10,
+        timeToLive: 1000 * 60 * 10, // 10 minutos
       });
 
       this.logger.log(`📤 Video Job enviado: jobId=${jobId}, audioId=${timestamp}`);
@@ -75,7 +81,7 @@ export class ServiceBusService implements OnModuleDestroy {
     try {
       await this.senders['image'].sendMessages({
         body: messageBody,
-        timeToLive: 1000 * 60 * 10,
+        timeToLive: 1000 * 60 * 10, // 10 minutos
       });
 
       this.logger.log(`🖼️ Imagen encolada para userId=${userId}`);

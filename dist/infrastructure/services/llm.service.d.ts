@@ -19,4 +19,5 @@ export declare class LLMService {
     classifyImageType(imagePath: string): Promise<string>;
     private runJsonPrompt;
     private runRawPrompt;
+    generateFluxPrompt(dto: any): Promise<string>;
 }

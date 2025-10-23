@@ -34,4 +34,9 @@ __decorate([
     (0, class_validator_1.IsBoolean)(),
     __metadata("design:type", Boolean)
 ], GeneratePromoImageDto.prototype, "useFlux", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsBoolean)(),
+    __metadata("design:type", Boolean)
+], GeneratePromoImageDto.prototype, "isJsonPrompt", void 0);
 //# sourceMappingURL=generate-promo-image.dto.js.map

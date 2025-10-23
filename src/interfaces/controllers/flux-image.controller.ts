@@ -11,13 +11,18 @@ import {
 } from '@nestjs/common';
 import { Request } from 'express';
 import { FluxImageService } from '../../infrastructure/services/flux-image.service';
+import { PromoImageService } from '../../infrastructure/services/promo-image.service';
+import { GeneratePromoImageDto } from '../dto/generate-promo-image.dto';
 import { GenerateFluxImageDto } from '../dto/generate-flux-image.dto';
 
 @Controller('media/flux-image')
 export class FluxImageController {
   private readonly logger = new Logger(FluxImageController.name);
 
-  constructor(private readonly fluxImageService: FluxImageService) {}
+  constructor(
+    private readonly fluxImageService: FluxImageService,
+    private readonly promoImageService: PromoImageService,
+  ) {}
 
   @Post()
   async generateFluxImage(
@@ -49,5 +54,13 @@ export class FluxImageController {
         HttpStatus.INTERNAL_SERVER_ERROR
       );
     }
+  }
+
+  @Post('/dual')
+  async generateDual(@Body() dto: GeneratePromoImageDto, @Req() req: Request): Promise<{ promo: string; flux: string }> {
+    const userId = (req as any).user?.id || 'anon';
+    const promoResult = await this.promoImageService.generateAndNotify(userId, { prompt: dto.prompt, useFlux: false });
+    const fluxUrl = await this.fluxImageService.generateFromPromoDto(dto);
+    return { promo: promoResult.imageUrl, flux: fluxUrl };
   }
 }

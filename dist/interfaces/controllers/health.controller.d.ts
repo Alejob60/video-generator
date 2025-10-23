@@ -9,9 +9,16 @@ export declare class HealthController {
         service: string;
         version: string;
     };
-    getHealth(): Promise<{
+    getHealth(check?: string): Promise<{
         status: string;
         services: Record<string, string>;
         timestamp: string;
+    } | {
+        status: string;
+        timestamp: string;
+        service: string;
+        version: string;
+        note: string;
     }>;
+    private performFullHealthCheck;
 }

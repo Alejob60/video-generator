@@ -46,14 +46,7 @@ async function bootstrap() {
     prefix: '/image/',
   });
 
-  
-
-
-  
-
-
-
-
+  // Configurar el puerto para Azure App Service o usar 4000 localmente
   const port = process.env.PORT || 4000;
   await app.listen(port);
   console.log(`🎬 Microservicio de video escuchando en http://localhost:${port}`);

@@ -35,6 +35,8 @@ let PromoImageController = PromoImageController_1 = class PromoImageController {
             const result = await this.promoImageService.generateAndNotify(userId, {
                 prompt: dto.prompt,
                 imagePath: file?.path || undefined,
+                useFlux: dto.useFlux,
+                isJsonPrompt: dto.isJsonPrompt,
             });
             this.logger.log(`✅ Imagen generada con éxito para usuario ${userId}`);
             return {

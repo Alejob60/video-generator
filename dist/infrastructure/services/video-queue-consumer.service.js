@@ -13,14 +13,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.VideoQueueConsumerService = void 0;
 const common_1 = require("@nestjs/common");
 const service_bus_1 = require("@azure/service-bus");
-const video_service_1 = require("../services/video.service");
+const video_service_1 = require("./video.service");
 const error_util_1 = require("../../common/utils/error.util");
 let VideoQueueConsumerService = VideoQueueConsumerService_1 = class VideoQueueConsumerService {
     constructor(videoService) {
         this.videoService = videoService;
         this.logger = new common_1.Logger(VideoQueueConsumerService_1.name);
         this.connectionString = process.env.AZURE_SERVICE_BUS_CONNECTION;
-        this.queueName = process.env.AZURE_SERVICE_BUS_QUEUE || 'video-processing-queue';
+        this.queueName = process.env.AZURE_SERVICE_BUS_QUEUE || 'video';
     }
     async onModuleInit() {
         if (!this.connectionString || !this.queueName) {
@@ -56,30 +56,46 @@ let VideoQueueConsumerService = VideoQueueConsumerService_1 = class VideoQueueCo
             }
             else {
                 this.logger.error(`❌ Fallo definitivo al procesar mensaje: ${msg}`);
-                await this.receiver.deadLetterMessage(message, {
-                    deadLetterReason: 'ProcessingFailed',
-                    deadLetterErrorDescription: msg,
-                });
+                try {
+                    await this.receiver.completeMessage(message);
+                }
+                catch (completionError) {
+                    this.logger.error(`❌ Error al completar mensaje fallido: ${(0, error_util_1.safeErrorMessage)(completionError)}`);
+                }
             }
         }
     }
     async handleMessage(message) {
-        const data = message.body;
-        if (!data?.jobId || !data?.audioId || !data?.script) {
-            throw new Error('❌ Mensaje inválido: Faltan campos requeridos.');
+        let data;
+        try {
+            data = message.body;
         }
+        catch (parseError) {
+            throw new Error(`❌ No se pudo parsear el mensaje: ${(0, error_util_1.safeErrorMessage)(parseError)}`);
+        }
+        if (!data?.jobId) {
+            throw new Error('❌ Mensaje inválido: Falta jobId requerido.');
+        }
+        const audioId = data.audioId || Date.now();
+        const script = data.script || '';
+        const narration = data.narration ?? false;
+        const subtitles = data.subtitles ?? false;
+        const n_seconds = data.n_seconds ?? 20;
+        const prompt = data.prompt || '';
         this.logger.log(`📨 Mensaje recibido:
 🆔 Job ID: ${data.jobId}
-🎧 Audio ID: ${data.audioId}
-🧠 Narración: ${data.narration}
-💬 Subtítulos: ${data.subtitles}
-⏱️ Duración: ${data.n_seconds}`);
-        await this.videoService.processGeneratedAssets(data.jobId, data.audioId, {
-            script: data.script,
-            narration: data.narration ?? false,
-            subtitles: data.subtitles ?? false,
-            n_seconds: data.n_seconds ?? 20,
-            prompt: data.prompt ?? '',
+🎧 Audio ID: ${audioId}
+🧠 Prompt: ${prompt}
+📝 Script: ${script}
+🔊 Narración: ${narration}
+💬 Subtítulos: ${subtitles}
+⏱️ Duración: ${n_seconds}`);
+        await this.videoService.processGeneratedAssets(data.jobId, audioId, {
+            script,
+            narration,
+            subtitles,
+            n_seconds,
+            prompt,
         });
         this.logger.log(`✅ Procesamiento exitoso para jobId=${data.jobId}`);
     }

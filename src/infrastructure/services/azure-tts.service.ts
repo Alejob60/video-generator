@@ -1,10 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import axios from 'axios';
 import { getAudioDurationInSeconds } from 'get-audio-duration';
 import { AzureBlobService } from './azure-blob.service';
+import { LLMService } from './llm.service';
 
 @Injectable()
 export class AzureTTSService {
@@ -15,7 +16,8 @@ export class AzureTTSService {
   private readonly model = 'gpt-4o-mini-tts';
 
   constructor(
-    private readonly blobService: AzureBlobService
+    private readonly blobService: AzureBlobService,
+    private readonly llmService: LLMService
   ) {}
 
   async generateAudioFromPrompt(prompt: string): Promise<{
@@ -24,6 +26,23 @@ export class AzureTTSService {
     filename: string;
     blobUrl: string;
   }> {
+    // Generar un script narrativo mejorado antes de enviar a TTS
+    let improvedScript = prompt;
+    
+    try {
+      this.logger.log(`📝 Mejorando script para narración promocional...`);
+      const narrativeResult = await this.llmService.generateNarrativeScript(
+        prompt, 
+        30, // Duración por defecto
+        'promotional' // Tipo de narración
+      );
+      improvedScript = narrativeResult.script;
+      this.logger.log(`✅ Script mejorado: ${improvedScript}`);
+    } catch (error) {
+      this.logger.warn(`⚠️ Error mejorando script, usando prompt original: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+      // Si falla la mejora, continuar con el prompt original
+    }
+
     const filename = `audio-${uuidv4()}.mp3`;
     const localDir = path.join(__dirname, '../../../public/audio');
     const localPath = path.join(localDir, filename);
@@ -35,7 +54,7 @@ export class AzureTTSService {
 
       const payload = {
         model: this.model,
-        input: prompt,
+        input: improvedScript, // Usar el script mejorado
         voice: this.voice,
       };
 
@@ -63,7 +82,7 @@ export class AzureTTSService {
 
       this.logger.log(`✅ Audio generado y subido correctamente`);
       return {
-        script: prompt,
+        script: improvedScript, // Devolver el script usado
         duration,
         filename,
         blobUrl,

@@ -12,14 +12,15 @@ const promo_image_service_1 = require("../services/promo-image.service");
 const azure_blob_service_1 = require("../services/azure-blob.service");
 const llm_service_1 = require("../services/llm.service");
 const promo_image_controller_1 = require("../../interfaces/controllers/promo-image.controller");
-const flux_image_service_1 = require("../services/flux-image.service");
+const flux_image_module_1 = require("./flux-image.module");
 let PromoImageModule = class PromoImageModule {
 };
 exports.PromoImageModule = PromoImageModule;
 exports.PromoImageModule = PromoImageModule = __decorate([
     (0, common_1.Module)({
+        imports: [(0, common_1.forwardRef)(() => flux_image_module_1.FluxImageModule)],
         controllers: [promo_image_controller_1.PromoImageController],
-        providers: [promo_image_service_1.PromoImageService, azure_blob_service_1.AzureBlobService, llm_service_1.LLMService, flux_image_service_1.FluxImageService],
+        providers: [promo_image_service_1.PromoImageService, azure_blob_service_1.AzureBlobService, llm_service_1.LLMService],
         exports: [promo_image_service_1.PromoImageService, llm_service_1.LLMService],
     })
 ], PromoImageModule);

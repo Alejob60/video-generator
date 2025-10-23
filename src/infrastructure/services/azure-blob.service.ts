@@ -99,6 +99,37 @@ export class AzureBlobService {
     return blockBlobClient.url;
   }
 
+  async uploadToContainerWithSas(filePath: string, containerName: string, blobName?: string, durationSeconds: number = 86400): Promise<string> {
+    const containerClient = this.blobServiceClient.getContainerClient(containerName);
+    await containerClient.createIfNotExists();
+
+    const fileName = blobName || path.basename(filePath);
+    const blockBlobClient = containerClient.getBlockBlobClient(fileName);
+    const fileBuffer = readFileSync(filePath);
+
+    await blockBlobClient.uploadData(fileBuffer, {
+      blobHTTPHeaders: {
+        blobContentType: this.getContentType(filePath),
+      },
+    });
+
+    // Generate SAS URL
+    const credential = new StorageSharedKeyCredential(this.accountName, this.accountKey);
+    const sas = generateBlobSASQueryParameters(
+      {
+        containerName: containerName,
+        blobName: fileName,
+        permissions: BlobSASPermissions.parse('r'),
+        startsOn: new Date(),
+        expiresOn: new Date(Date.now() + durationSeconds * 1000),
+        protocol: SASProtocol.Https,
+      },
+      credential,
+    ).toString();
+
+    return `https://${this.accountName}.blob.core.windows.net/${containerName}/${fileName}?${sas}`;
+  }
+
   async uploadToContainer(filePath: string, containerName: string, blobName?: string): Promise<string> {
     const containerClient = this.blobServiceClient.getContainerClient(containerName);
     await containerClient.createIfNotExists();
@@ -157,6 +188,70 @@ export class AzureBlobService {
 
     await blockBlobClient.syncCopyFromURL(sourceUrl);
     return blockBlobClient.url;
+  }
+
+  async uploadFileToBlobWithSas(filePath: string, fileName: string, mimeType?: string, durationSeconds: number = 86400): Promise<string> {
+    const containerName = this.getContainerNameFromPath(fileName);
+    const containerClient = this.blobServiceClient.getContainerClient(containerName);
+    await containerClient.createIfNotExists();
+
+    const fileBuffer = readFileSync(filePath);
+    const blockBlobClient = containerClient.getBlockBlobClient(fileName);
+
+    await blockBlobClient.uploadData(fileBuffer, {
+      blobHTTPHeaders: {
+        blobContentType: mimeType || this.getContentType(filePath),
+      },
+    });
+
+    this.logger.log(`📤 File uploaded to container ${containerName} with name: ${fileName}`);
+    
+    // Generate SAS URL
+    const credential = new StorageSharedKeyCredential(this.accountName, this.accountKey);
+    const sas = generateBlobSASQueryParameters(
+      {
+        containerName: containerName,
+        blobName: fileName,
+        permissions: BlobSASPermissions.parse('r'),
+        startsOn: new Date(),
+        expiresOn: new Date(Date.now() + durationSeconds * 1000),
+        protocol: SASProtocol.Https,
+      },
+      credential,
+    ).toString();
+
+    return `https://${this.accountName}.blob.core.windows.net/${containerName}/${fileName}?${sas}`;
+  }
+
+  async uploadFileFromUrlWithSas(url: string, filename: string, durationSeconds: number = 86400): Promise<string> {
+    const containerName = this.getContainerNameFromPath(filename);
+    const containerClient = this.blobServiceClient.getContainerClient(containerName);
+    const blockBlobClient = containerClient.getBlockBlobClient(filename);
+
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const buffer = Buffer.from(response.data);
+
+    await blockBlobClient.uploadData(buffer, {
+      blobHTTPHeaders: { blobContentType: this.getContentType(filename) },
+    });
+
+    this.logger.log(`📤 File downloaded from URL and uploaded to container ${containerName} with name: ${filename}`);
+    
+    // Generate SAS URL
+    const credential = new StorageSharedKeyCredential(this.accountName, this.accountKey);
+    const sas = generateBlobSASQueryParameters(
+      {
+        containerName: containerName,
+        blobName: filename,
+        permissions: BlobSASPermissions.parse('r'),
+        startsOn: new Date(),
+        expiresOn: new Date(Date.now() + durationSeconds * 1000),
+        protocol: SASProtocol.Https,
+      },
+      credential,
+    ).toString();
+
+    return `https://${this.accountName}.blob.core.windows.net/${containerName}/${filename}?${sas}`;
   }
 
   async generateSasUrl(blobName: string, durationSeconds: number): Promise<string> {
