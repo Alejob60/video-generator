@@ -37,13 +37,12 @@ export class FluxImageService {
     let finalPrompt: string = dto.prompt;
     if (dto.isJsonPrompt) {
       try {
-        const parsedPrompt = JSON.parse(dto.prompt);
-        // Convert JSON prompt to a natural language description
-        finalPrompt = this.convertJsonToNaturalLanguage(parsedPrompt);
-        this.logger.log(`📋 Converted JSON prompt to natural language: ${finalPrompt}`);
+        // Use LLM to convert JSON prompt to a natural language description
+        finalPrompt = await this.llmService.improveImagePrompt(dto.prompt);
+        this.logger.log(`📋 Converted JSON prompt to natural language with LLM: ${finalPrompt}`);
       } catch (error: any) {
-        this.logger.warn(`⚠️ Failed to parse JSON prompt, using as-is: ${error.message}`);
-        // If parsing fails, use the prompt as-is
+        this.logger.warn(`⚠️ Failed to convert JSON prompt with LLM, using as-is: ${error.message}`);
+        // If LLM conversion fails, use the prompt as-is
         finalPrompt = dto.prompt;
       }
     }
@@ -189,13 +188,12 @@ export class FluxImageService {
     let finalPrompt: string = dto.prompt;
     if (dto.isJsonPrompt) {
       try {
-        const parsedPrompt = JSON.parse(dto.prompt);
-        // Convert JSON prompt to a natural language description
-        finalPrompt = this.convertJsonToNaturalLanguage(parsedPrompt);
-        this.logger.log(`📋 Converted JSON prompt to natural language: ${finalPrompt}`);
+        // Use LLM to convert JSON prompt to a natural language description
+        finalPrompt = await this.llmService.improveImagePrompt(dto.prompt);
+        this.logger.log(`📋 Converted JSON prompt to natural language with LLM: ${finalPrompt}`);
       } catch (error: any) {
-        this.logger.warn(`⚠️ Failed to parse JSON prompt, using as-is: ${error.message}`);
-        // If parsing fails, use the prompt as-is
+        this.logger.warn(`⚠️ Failed to convert JSON prompt with LLM, using as-is: ${error.message}`);
+        // If LLM conversion fails, use the prompt as-is
         finalPrompt = dto.prompt;
       }
     }
