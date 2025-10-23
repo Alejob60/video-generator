@@ -1,5 +1,5 @@
 // src/interfaces/controllers/health.controller.ts
-import { Controller, Get, Logger } from '@nestjs/common';
+import { Controller, Get, Logger, Query } from '@nestjs/common';
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
 
@@ -20,7 +20,23 @@ export class HealthController {
   }
 
   @Get('/health')
-  async getHealth() {
+  async getHealth(@Query('check') check: string = 'basic') {
+    // Only perform comprehensive health checks when explicitly requested
+    if (check === 'full') {
+      return await this.performFullHealthCheck();
+    }
+    
+    // Return basic health status by default
+    return {
+      status: 'online',
+      timestamp: new Date().toISOString(),
+      service: 'video-generator',
+      version: '1.0.0',
+      note: 'For full health check, use ?check=full parameter'
+    };
+  }
+
+  private async performFullHealthCheck() {
     const results: Record<string, string> = {
       llm: 'fail',
       tts: 'fail',
