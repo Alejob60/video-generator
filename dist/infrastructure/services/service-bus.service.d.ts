@@ -8,6 +8,7 @@ export declare class ServiceBusService implements OnModuleDestroy {
     constructor(configService: ConfigService);
     sendVideoJobMessage(jobId: string, timestamp: number, metadata: Record<string, any>): Promise<void>;
     sendImageJobMessage(userId: string, prompt: string): Promise<void>;
+    sendInfluencerJobMessage(jobId: string, userId: string, metadata: Record<string, any>): Promise<void>;
     private handleError;
     onModuleDestroy(): Promise<void>;
 }

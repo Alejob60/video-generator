@@ -109,7 +109,18 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenerateAudioDto'
+              type: object
+              properties:
+                prompt:
+                  type: string
+                  example: "Bienvenidos a nuestro canal de YouTube. Hoy vamos a hablar sobre..."
+                voice:
+                  type: string
+                  example: "nova"
+                plan:
+                  type: string
+                  enum: [FREE, CREATOR, PRO]
+                  example: "CREATOR"
       responses:
         '200':
           description: Audio generado exitosamente
@@ -123,70 +134,18 @@ paths:
                     example: true
                   message:
                     type: string
-                    example: 🎧 Audio generado con éxito
-                  result:
-                    type: object
-                    properties:
-                      script:
-                        type: string
-                      duration:
-                        type: number
-                      filename:
-                        type: string
-                      blobUrl:
-                        type: string
-                      generationId:
-                        type: string
-                      userId:
-                        type: string
-                      timestamp:
-                        type: number
-        '400':
-          description: Prompt requerido
-        '500':
-          description: Error interno del servidor
-
-  /media/flux-image:
-    post:
-      summary: Generar imagen con FLUX
-      description: Genera imágenes usando FLUX-1.1-pro
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GenerateFluxImageDto'
-      responses:
-        '200':
-          description: Imagen generada exitosamente
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  success:
-                    type: boolean
-                    example: true
-                  message:
+                    example: ✅ Audio generado y subido exitosamente
+                  audioUrl:
                     type: string
-                    example: ✅ FLUX image generated successfully
-                  data:
-                    type: object
-                    properties:
-                      imageUrl:
-                        type: string
-                      filename:
-                        type: string
-                      userId:
-                        type: string
-                      prompt:
-                        type: string
+                    example: https://storageaccount.blob.core.windows.net/audio/audio.mp3?sv=2020-08-04&ss=bfqt&srt=sco&sp=rwdlacupitfx&se=2025-10-16T00%3A00%3A00Z&st=2025-10-15T00%3A00%3A00Z&spr=https&sig=token
+        '400':
+          description: Solicitud inválida
         '500':
           description: Error interno del servidor
 
   /llm/generate-json:
     post:
-      summary: Generar prompt JSON para video
+      summary: Generar prompt JSON
       description: Genera un prompt JSON editable para video
       requestBody:
         required: true
@@ -197,16 +156,13 @@ paths:
               properties:
                 prompt:
                   type: string
-                  description: El prompt base
+                  example: "Un video sobre cómo preparar una hamburguesa gourmet"
                 duration:
-                  type: number
-                  description: Duración del video (opcional)
-                useJson:
-                  type: boolean
-                  description: Usar formato JSON (opcional)
+                  type: integer
+                  example: 30
       responses:
         '200':
-          description: Prompt JSON generado
+          description: Prompt JSON generado exitosamente
           content:
             application/json:
               schema:
@@ -217,14 +173,19 @@ paths:
                     example: true
                   message:
                     type: string
-                    example: Prompt JSON generado
-                  result:
+                    example: ✅ Prompt JSON generado correctamente
+                  prompt:
                     type: object
-                    properties:
-                      promptJson:
-                        type: string
+                    example: {
+                      "scene": "Cocina moderna",
+                      "characters": ["Chef profesional"],
+                      "camera": "Plano medio",
+                      "lighting": "Iluminación cálida",
+                      "style": "Estilo documental",
+                      "interactionFocus": "Preparación de hamburguesa"
+                    }
         '400':
-          description: Prompt inválido
+          description: Solicitud inválida
         '500':
           description: Error interno del servidor
 
@@ -237,7 +198,18 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GeneratePromoImageDto'
+              type: object
+              properties:
+                prompt:
+                  type: string
+                  example: "Un zapato deportivo flotando sobre un fondo futurista azul"
+                plan:
+                  type: string
+                  enum: [FREE, CREATOR, PRO]
+                  example: "CREATOR"
+                useFlux:
+                  type: boolean
+                  example: true
       responses:
         '200':
           description: Imagen generada exitosamente
@@ -257,23 +229,147 @@ paths:
                     properties:
                       imageUrl:
                         type: string
-                      filename:
-                        type: string
+                        example: https://storageaccount.blob.core.windows.net/images/image.png?sv=2020-08-04&ss=bfqt&srt=sco&sp=rwdlacupitfx&se=2025-10-16T00%3A00%3A00Z&st=2025-10-15T00%3A00%3A00Z&spr=https&sig=token
         '400':
-          description: Prompt o imagen requeridos
+          description: Solicitud inválida
         '500':
           description: Error interno del servidor
 
-  /videos/generate:
+  /media/flux-image:
     post:
-      summary: Generar video con Sora
-      description: Genera videos usando Sora (solo si useSora=true)
+      summary: Generar imagen con FLUX-1.1-pro
+      description: Genera imágenes usando FLUX-1.1-pro
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenerateVideoDto'
+              type: object
+              properties:
+                prompt:
+                  type: string
+                  example: "A majestic lion in the savannah at sunset"
+                plan:
+                  type: string
+                  enum: [FREE, CREATOR, PRO]
+                  example: "CREATOR"
+                size:
+                  type: string
+                  enum: [1024x1024, 1024x768, 768x1024]
+                  example: "1024x1024"
+                isJsonPrompt:
+                  type: boolean
+                  example: false
+      responses:
+        '200':
+          description: Imagen generada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: ✅ FLUX image generated successfully
+                  data:
+                    type: object
+                    properties:
+                      imageUrl:
+                        type: string
+                        example: https://storageaccount.blob.core.windows.net/images/image.png?sv=2020-08-04&ss=bfqt&srt=sco&sp=rwdlacupitfx&se=2025-10-16T00%3A00%3A00Z&st=2025-10-15T00%3A00%3A00Z&spr=https&sig=token
+        '400':
+          description: Solicitud inválida
+        '500':
+          description: Error interno del servidor
+
+  /media/flux-kontext-image:
+    post:
+      summary: Generar imagen con FLUX.1-Kontext-pro
+      description: Genera imágenes usando FLUX.1-Kontext-pro con opción de carga de imagen de referencia
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  type: string
+                  example: "A beautiful landscape with mountains and lakes"
+                plan:
+                  type: string
+                  enum: [FREE, CREATOR, PRO]
+                  example: "CREATOR"
+                size:
+                  type: string
+                  enum: [1024x1024, 1024x768, 768x1024]
+                  example: "1024x1024"
+                isJsonPrompt:
+                  type: boolean
+                  example: false
+      responses:
+        '200':
+          description: Imagen generada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: ✅ FLUX.1-Kontext-pro image generated successfully
+                  data:
+                    type: object
+                    properties:
+                      imageUrl:
+                        type: string
+                        example: https://storageaccount.blob.core.windows.net/images/image.png?sv=2020-08-04&ss=bfqt&srt=sco&sp=rwdlacupitfx&se=2025-10-16T00%3A00%3A00Z&st=2025-10-15T00%3A00%3A00Z&spr=https&sig=token
+        '400':
+          description: Solicitud inválida
+        '500':
+          description: Error interno del servidor
+
+  /videos/generate:
+    post:
+      summary: Generar video
+      description: Genera videos completos con múltiples elementos (video, audio, subtítulos)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                prompt:
+                  type: string
+                  example: "Un video sobre cómo preparar una hamburguesa gourmet"
+                duration:
+                  type: integer
+                  example: 30
+                options:
+                  type: object
+                  properties:
+                    n_seconds:
+                      type: integer
+                      example: 30
+                    height:
+                      type: integer
+                      example: 720
+                    width:
+                      type: integer
+                      example: 1280
+                    n_variants:
+                      type: integer
+                      example: 1
+                useSora:
+                  type: boolean
+                  example: true
       responses:
         '200':
           description: Video generado exitosamente
@@ -327,7 +423,32 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/GenerateVideoDto'
+              type: object
+              properties:
+                prompt:
+                  type: string
+                  example: "Un video sobre cómo preparar una hamburguesa gourmet"
+                duration:
+                  type: integer
+                  example: 30
+                options:
+                  type: object
+                  properties:
+                    n_seconds:
+                      type: integer
+                      example: 30
+                    height:
+                      type: integer
+                      example: 720
+                    width:
+                      type: integer
+                      example: 1280
+                    n_variants:
+                      type: integer
+                      example: 1
+                useSora:
+                  type: boolean
+                  example: true
       responses:
         '200':
           description: Video generado exitosamente
@@ -341,104 +462,12 @@ paths:
                     example: true
                   message:
                     type: string
-                    example: Medios generados exitosamente
-                  result:
-                    type: object
-                    properties:
-                      userId:
-                        type: string
-                      timestamp:
-                        type: number
-                      videoUrl:
-                        type: string
-                      duration:
-                        type: number
-                      plan:
-                        type: string
-                      fileName:
-                        type: string
-                      soraJobId:
-                        type: string
-                      generationId:
-                        type: string
-                      audioUrl:
-                        type: string
-                      script:
-                        type: string
-                      audioError:
-                        type: string
-                      subtitles:
-                        type: string
-                      music:
-                        type: string
-                      error:
-                        type: string
+                    example: ✅ Video generado y subido exitosamente con Sora
+                  jobId:
+                    type: string
+                  blobUrl:
+                    type: string
         '400':
-          description: Prompt requerido
+          description: useSora debe ser true
         '500':
           description: Error interno del servidor
-
-components:
-  schemas:
-    GenerateAudioDto:
-      type: object
-      properties:
-        prompt:
-          type: string
-          description: El texto para generar el audio
-      required:
-        - prompt
-
-    GenerateFluxImageDto:
-      type: object
-      properties:
-        prompt:
-          type: string
-          description: El prompt para generar la imagen
-        size:
-          type: string
-          description: Tamaño de la imagen (ej. "1024x1024")
-        plan:
-          type: string
-          description: Plan del usuario (ej. "FREE")
-      required:
-        - prompt
-
-    GeneratePromoImageDto:
-      type: object
-      properties:
-        prompt:
-          type: string
-          description: El prompt para generar la imagen
-        textOverlay:
-          type: string
-          description: Texto a superponer en la imagen (opcional)
-      required:
-        - prompt
-
-    GenerateVideoDto:
-      type: object
-      properties:
-        prompt:
-          type: string
-          description: El prompt para generar el video
-        n_seconds:
-          type: number
-          description: Duración del video en segundos
-        plan:
-          type: string
-          description: Plan del usuario (free, creator, pro)
-        useSora:
-          type: boolean
-          description: Usar Sora para generar el video
-        useVoice:
-          type: boolean
-          description: Incluir narración de voz
-        useSubtitles:
-          type: boolean
-          description: Incluir subtítulos
-        useMusic:
-          type: boolean
-          description: Incluir música
-      required:
-        - prompt

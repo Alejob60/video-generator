@@ -16,7 +16,14 @@
   - **Servicio**: FluxImageService
   - **Respuesta**: URL de la imagen generada con SAS
 
-### 3. Health Controller (`/`)
+### 3. Flux Kontext Image Controller (`/media/flux-kontext-image`)
+- [x] **POST** `/media/flux-kontext-image`
+  - **Descripción**: Genera imágenes usando FLUX.1-Kontext-pro con opción de carga de imagen de referencia
+  - **DTO**: GenerateFluxKontextImageDto
+  - **Servicio**: FluxKontextImageService
+  - **Respuesta**: URL de la imagen generada con SAS
+
+### 4. Health Controller (`/`)
 - [x] **GET** `/status`
   - **Descripción**: Verifica el estado básico del servicio
   - **Servicio**: Ninguno (información estática)
@@ -28,28 +35,28 @@
   - **Servicios**: LLM, TTS, Sora, Blob Storage, Backend (solo con `check=full`)
   - **Respuesta**: Estado de cada servicio (solo con `check=full`)
 
-### 4. LLM Controller (`/llm`)
+### 5. LLM Controller (`/llm`)
 - [x] **POST** `/llm/generate-json`
   - **Descripción**: Genera un prompt JSON editable para video
   - **DTO**: GeneratePromptDto
   - **Servicio**: LLMService
   - **Respuesta**: Prompt en formato JSON
 
-### 5. Promo Image Controller (`/media/image`)
+### 6. Promo Image Controller (`/media/image`)
 - [x] **POST** `/media/image`
   - **Descripción**: Genera imágenes promocionales (puede usar DALL·E o FLUX)
   - **DTO**: GeneratePromoImageDto
   - **Servicio**: PromoImageService
   - **Respuesta**: URL de la imagen generada con SAS
 
-### 6. Sora Controller (`/videos`)
+### 7. Sora Controller (`/videos`)
 - [x] **POST** `/videos/generate`
   - **Descripción**: Genera videos usando Sora (solo si useSora=true)
   - **DTO**: GenerateVideoDto
   - **Servicio**: SoraService
   - **Respuesta**: URL del video generado con SAS
 
-### 7. Video Controller (`/videos`)
+### 8. Video Controller (`/videos`)
 - [x] **GET** `/videos/health`
   - **Descripción**: Verifica la salud del servicio de video
   - **Servicio**: SoraVideoClientService
@@ -86,32 +93,34 @@
 - [x] Genera URLs SAS
 - [x] Notifica al backend principal
 
-### 5. LLMService
-- [x] Genera guiones narrativos
-- [x] Mejora prompts para video
-- [x] Mejora prompts para imagen
-- [x] Genera prompts para música
-- [x] Procesa imágenes para generar descripciones
-
-### 6. PromoImageService
-- [x] Genera imágenes promocionales
-- [x] Puede usar DALL·E o FLUX
+### 5. FluxKontextImageService
+- [x] Genera imágenes usando FLUX.1-Kontext-pro
+- [x] Maneja edición de imágenes con imagen de referencia
+- [x] Maneja respuestas con URL o base64
 - [x] Sube imágenes a Azure Blob Storage
 - [x] Genera URLs SAS
 - [x] Notifica al backend principal
 
-### 7. SoraService
-- [x] Crea jobs de video en Sora
-- [x] Espera a que se generen los videos
+### 6. LLMService
+- [x] Genera prompts mejorados para diferentes tipos de contenido
+- [x] Mejora prompts JSON a lenguaje natural
+- [x] Genera scripts narrativos
+
+### 7. PromoImageService
+- [x] Genera imágenes promocionales usando DALL·E o FLUX
+- [x] Sube imágenes a Azure Blob Storage
+- [x] Genera URLs SAS
+- [x] Notifica al backend principal
+
+### 8. SoraService
+- [x] Genera videos usando Sora
 - [x] Sube videos a Azure Blob Storage
 - [x] Genera URLs SAS
-
-### 8. SoraVideoClientService
-- [x] Verifica la salud del servicio Sora
-- [x] Solicita la generación de videos al servicio Sora
+- [x] Notifica al backend principal
 
 ### 9. VideoService
-- [x] Genera videos completos con múltiples elementos
-- [x] Coordina la generación de audio, video y subtítulos
-- [x] Sube todos los elementos a Azure Blob Storage
+- [x] Coordina la generación de videos completos
+- [x] Combina múltiples elementos (video, audio, subtítulos)
+- [x] Sube videos a Azure Blob Storage
 - [x] Genera URLs SAS
+- [x] Notifica al backend principal

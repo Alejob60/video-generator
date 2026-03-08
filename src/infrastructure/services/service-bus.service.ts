@@ -21,6 +21,7 @@ export class ServiceBusService implements OnModuleDestroy {
     // Inicializa los senders según las colas disponibles
     const videoQueue = this.configService.get<string>('AZURE_SERVICE_BUS_QUEUE') || 'video';
     const imageQueue = this.configService.get<string>('AZURE_SERVICE_BUS_QUEUE_IMAGE') || 'imagen';
+    const influencerQueue = this.configService.get<string>('AZURE_SERVICE_BUS_QUEUE_INFLUENCER') || 'influencer-video-queue';
 
     if (videoQueue) {
       this.senders['video'] = this.sbClient.createSender(videoQueue);
@@ -28,6 +29,10 @@ export class ServiceBusService implements OnModuleDestroy {
 
     if (imageQueue) {
       this.senders['image'] = this.sbClient.createSender(imageQueue);
+    }
+    
+    if (influencerQueue) {
+      this.senders['influencer'] = this.sbClient.createSender(influencerQueue);
     }
   }
 
@@ -87,6 +92,38 @@ export class ServiceBusService implements OnModuleDestroy {
       this.logger.log(`🖼️ Imagen encolada para userId=${userId}`);
     } catch (error) {
       this.handleError(error, 'image');
+    }
+  }
+
+  async sendInfluencerJobMessage(
+    jobId: string,
+    userId: string,
+    metadata: Record<string, any>,
+  ): Promise<void> {
+    if (!this.senders['influencer']) {
+      throw new Error('❌ Cola de influencer no está configurada correctamente');
+    }
+
+    const messageBody = {
+      jobId,
+      userId,
+      imageUrl: metadata.imageUrl || '',
+      script: metadata.script || '',
+      voiceId: metadata.voiceId || '',
+      plan: metadata.plan || 'free',
+      timestamp: metadata.timestamp || Date.now(),
+      ...metadata,
+    };
+
+    try {
+      await this.senders['influencer'].sendMessages({
+        body: messageBody,
+        timeToLive: 1000 * 60 * 10, // 10 minutos
+      });
+
+      this.logger.log(`👤 Influencer Job enviado: jobId=${jobId}, userId=${userId}`);
+    } catch (error) {
+      this.handleError(error, 'influencer');
     }
   }
 

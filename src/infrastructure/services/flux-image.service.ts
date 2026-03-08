@@ -11,7 +11,7 @@ import { GeneratePromoImageDto } from '../../interfaces/dto/generate-promo-image
 @Injectable()
 export class FluxImageService {
   private readonly logger = new Logger(FluxImageService.name);
-  private readonly endpoint = 'https://labsc-m9j5kbl9-eastus2.services.ai.azure.com/openai/deployments/FLUX-1.1-pro/images/generations';
+  private readonly endpoint = 'https://labsc-m9j5kbl9-eastus2.services.ai.azure.com/openai/deployments/flux-1.1-pro/images/generations';
   private readonly apiVersion = '2025-04-01-preview';
   private readonly apiKey = process.env.FLUX_API_KEY || ''; // You'll need to add this to your .env file
   private readonly backendUrl = process.env.MAIN_BACKEND_URL!;
@@ -71,7 +71,27 @@ export class FluxImageService {
       this.logger.log(`📥 FLUX API Response Status: ${response.status}`);
       this.logger.log(`📥 FLUX API Response Headers: ${JSON.stringify(response.headers, null, 2)}`);
       
-      const imageData = response.data.data?.[0];
+      // Handle the correct response structure from Azure OpenAI
+      // First check if response.data directly contains the base64 image
+      let imageData: any;
+      
+      // Check if response.data is directly the base64 string
+      if (typeof response.data === 'string' && (response.data.startsWith('iVBOR') || response.data.startsWith('/9j/'))) {
+        this.logger.log('🎯 Direct base64 response detected');
+        imageData = { b64_json: response.data };
+      } else if (response.data.choices && response.data.choices.length > 0) {
+        // Standard OpenAI format
+        imageData = response.data.choices[0];
+      } else if (response.data.data && response.data.data.length > 0) {
+        // Alternative format with data array
+        imageData = response.data.data[0];
+      } else {
+        this.logger.error(`❌ Unexpected response structure. Response keys: ${Object.keys(response.data).join(', ')}`);
+        this.logger.error(`❌ Response data type: ${typeof response.data}`);
+        this.logger.error(`❌ Full response data: ${JSON.stringify(response.data).substring(0, 500)}...`);
+        throw new Error('No image data received from FLUX API');
+      }
+      
       if (!imageData) {
         throw new Error('No image data received from FLUX API');
       }
@@ -222,7 +242,27 @@ export class FluxImageService {
       this.logger.log(`📥 FLUX API Response Status: ${response.status}`);
       this.logger.log(`📥 FLUX API Response Headers: ${JSON.stringify(response.headers, null, 2)}`);
       
-      const imageData = response.data.data?.[0];
+      // Handle the correct response structure from Azure OpenAI
+      // First check if response.data directly contains the base64 image
+      let imageData: any;
+      
+      // Check if response.data is directly the base64 string
+      if (typeof response.data === 'string' && (response.data.startsWith('iVBOR') || response.data.startsWith('/9j/'))) {
+        this.logger.log('🎯 Direct base64 response detected');
+        imageData = { b64_json: response.data };
+      } else if (response.data.choices && response.data.choices.length > 0) {
+        // Standard OpenAI format
+        imageData = response.data.choices[0];
+      } else if (response.data.data && response.data.data.length > 0) {
+        // Alternative format with data array
+        imageData = response.data.data[0];
+      } else {
+        this.logger.error(`❌ Unexpected response structure. Response keys: ${Object.keys(response.data).join(', ')}`);
+        this.logger.error(`❌ Response data type: ${typeof response.data}`);
+        this.logger.error(`❌ Full response data: ${JSON.stringify(response.data).substring(0, 500)}...`);
+        throw new Error('No image data received from FLUX API');
+      }
+      
       if (!imageData) {
         throw new Error('No image data received from FLUX API');
       }
@@ -309,10 +349,10 @@ export class FluxImageService {
       } else {
         throw new Error('Unexpected response format from FLUX API - no URL or base64 data found');
       }
-      
+
       return {
         imageUrl: blobUrl,
-        filename
+        filename,
       };
     } catch (error: any) {
       this.logger.error('❌ Error generating image with FLUX-1.1-pro:', error);

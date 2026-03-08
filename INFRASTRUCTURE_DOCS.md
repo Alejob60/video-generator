@@ -1,177 +1,146 @@
-# Infraestructura del Microservicio de Generación de Video
+# Documentación de Infraestructura
 
-## Arquitectura General
+## Módulos del Sistema
 
-Este microservicio está diseñado para manejar la generación completa de videos con los siguientes componentes:
+### 1. AudioModule
+**Responsabilidad**: Gestiona la generación de audio mediante Text-to-Speech (TTS) usando servicios de Azure.
+**Componentes principales**:
+- AudioController: Expone endpoints REST para la generación de audio
+- AudioGeneratorService: Implementa la lógica de negocio para la generación de audio
+- AzureTTSService: Interactúa con la API de Azure Text-to-Speech
 
-```
-[Frontend] → [Backend Principal] → [Microservicio Video Generator] → [Azure Services]
-                                    ↑
-                              [Cola Service Bus]
-```
+### 2. VideoModule
+**Responsabilidad**: Coordina la generación de videos completos combinando múltiples elementos (video, audio, subtítulos).
+**Componentes principales**:
+- VideoController: Expone endpoints REST para la generación de videos
+- VideoService: Implementa la lógica de negocio para la coordinación de videos
+- VideoQueueConsumerService: Consume mensajes de la cola de Service Bus para procesamiento asíncrono
 
-## Componentes Clave
+### 3. PromoImageModule
+**Responsabilidad**: Genera imágenes promocionales usando servicios de IA como DALL·E o FLUX.
+**Componentes principales**:
+- PromoImageController: Expone endpoints REST para la generación de imágenes promocionales
+- PromoImageService: Implementa la lógica de negocio para la generación de imágenes
+- PromoImageQueueConsumerService: Consume mensajes de la cola de Service Bus para procesamiento asíncrono
 
-1. **Microservicio Video Generator** (este servicio)
-   - Desplegado en Azure App Service (Linux, Node.js 20 LTS)
-   - Contenerizado con Docker
-   - Registro en Azure Container Registry (realcultureacr)
+### 4. SoraModule
+**Responsabilidad**: Interactúa con el servicio Sora para la generación de videos de IA.
+**Componentes principales**:
+- SoraController: Expone endpoints REST para la generación de videos con Sora
+- SoraService: Implementa la lógica de negocio para la interacción con Sora
+- SoraVideoClientService: Cliente para comunicarse con el microservicio de Sora
 
-2. **Azure Service Bus**
-   - Cola `video` para procesamiento asíncrono de videos
-   - Cola `imagen` para procesamiento de imágenes
+### 5. FluxImageModule
+**Responsabilidad**: Genera imágenes usando el modelo FLUX-1.1-pro.
+**Componentes principales**:
+- FluxImageController: Expone endpoints REST para la generación de imágenes con FLUX
+- FluxImageService: Implementa la lógica de negocio para la generación de imágenes con FLUX
 
-3. **Servicios Azure Integrados**
-   - Azure OpenAI (GPT-4, DALL-E, TTS)
-   - Azure Blob Storage (almacenamiento de videos, audios, imágenes)
-   - Sora Video Generator (servicio externo)
+### 6. FluxKontextImageModule
+**Responsabilidad**: Genera imágenes usando el modelo FLUX.1-Kontext-pro, con capacidad de edición usando imágenes de referencia.
+**Componentes principales**:
+- FluxKontextImageController: Expone endpoints REST para la generación de imágenes con FLUX.1-Kontext-pro
+- FluxKontextImageService: Implementa la lógica de negocio para la generación de imágenes con FLUX.1-Kontext-pro
 
-## Endpoints Activos
+### 7. LLMModule
+**Responsabilidad**: Proporciona servicios de procesamiento de lenguaje natural usando modelos de IA.
+**Componentes principales**:
+- LLMController: Expone endpoints REST para la generación de prompts mejorados
+- LLMService: Implementa la lógica de negocio para el procesamiento de lenguaje natural
 
-### 1. Health Check Endpoints
+### 8. ServiceBusModule
+**Responsabilidad**: Gestiona la comunicación asíncrona mediante colas de mensajes de Azure Service Bus.
+**Componentes principales**:
+- ServiceBusService: Implementa la lógica para enviar y recibir mensajes de Service Bus
 
-#### GET `/status`
-Verificación básica del servicio
+## Servicios Compartidos
 
-**Respuesta:**
-```json
-{
-  "status": "online",
-  "timestamp": "2025-10-15T20:30:45.123Z",
-  "service": "video-generator",
-  "version": "1.0.0"
-}
-```
+### AzureBlobService
+**Responsabilidad**: Gestiona el almacenamiento y recuperación de archivos en Azure Blob Storage.
+**Funcionalidades**:
+- Subida de archivos con generación de URLs SAS
+- Descarga de archivos
+- Gestión de contenedores
 
-#### GET `/health`
-Verificación completa de todos los servicios dependientes
+### HealthController
+**Responsabilidad**: Proporciona endpoints para monitorear la salud del servicio.
+**Endpoints**:
+- `/status`: Verificación básica del estado del servicio
+- `/health`: Verificación completa de la salud de todos los servicios dependientes
 
-**Respuesta:**
-```json
-{
-  "status": "ok|degraded",
-  "services": {
-    "llm": "ok|fail",
-    "tts": "ok|fail",
-    "sora": "ok|fail",
-    "blob": "ok|fail",
-    "backend": "ok|fail"
-  },
-  "timestamp": "2025-10-15T20:30:45.123Z"
-}
-```
+## Arquitectura de Colas
 
-### 2. Video Generation Endpoint
+El sistema utiliza Azure Service Bus para procesamiento asíncrono:
+- `video`: Cola para solicitudes de generación de videos
+- `imagen`: Cola para solicitudes de generación de imágenes
 
-#### POST `/videos/generate`
+## Variables de Entorno
 
-**Payload requerido:**
-```json
-{
-  "prompt": "Descripción detallada del video a generar",
-  "n_seconds": 10,
-  "plan": "free|creator|pro",
-  "useVoice": true,
-  "useSubtitles": true,
-  "useMusic": false
-}
-```
+### Azure OpenAI
+- `AZURE_OPENAI_GPT_URL`: URL del endpoint de GPT
+- `AZURE_OPENAI_KEY`: Clave de API para Azure OpenAI
+- `AZURE_OPENAI_GPT_DEPLOYMENT`: Nombre del deployment de GPT
+- `AZURE_OPENAI_API_VERSION`: Versión de la API de Azure OpenAI
 
-**Respuesta exitosa:**
-```json
-{
-  "success": true,
-  "message": "Medios generados exitosamente",
-  "result": {
-    "userId": "admin",
-    "timestamp": 1702672245123,
-    "videoUrl": "https://storage-url/video.mp4",
-    "duration": 10,
-    "plan": "free",
-    "fileName": "video.mp4",
-    "soraJobId": "job-123",
-    "generationId": "gen-456",
-    "audioUrl": "https://storage-url/audio.mp3",
-    "script": "Texto narrado"
-  }
-}
-```
+### Azure TTS
+- `AZURE_TTS_ENDPOINT`: URL del endpoint de Text-to-Speech
+- `AZURE_TTS_KEY`: Clave de API para Azure TTS
+- `AZURE_TTS_DEPLOYMENT`: Nombre del deployment de TTS
+- `AZURE_TTS_API_VERSION`: Versión de la API de Azure TTS
+- `AZURE_TTS_VOICE`: Voz predeterminada para la generación de audio
 
-## Procesamiento Asíncrono con Colas
+### Azure Storage
+- `AZURE_STORAGE_CONNECTION_STRING`: Cadena de conexión para Azure Storage
+- `AZURE_STORAGE_KEY`: Clave de cuenta para Azure Storage
+- `AZURE_STORAGE_CONTAINER_NAME`: Nombre del contenedor para archivos de audio
+- `AZURE_STORAGE_CONTAINER_VIDEO`: Nombre del contenedor para archivos de video
+- `AZURE_STORAGE_CONTAINER_IMAGES`: Nombre del contenedor para archivos de imagen
 
-### ¿Cuándo se usan las colas?
+### Sora
+- `SORA_VIDEO_URL`: URL del microservicio de Sora
 
-1. **Desde el Backend Principal**: Cuando se envían solicitudes de generación de video
-2. **Interno**: Para procesar videos generados por Sora y agregar narración/subtítulos
+### FLUX
+- `FLUX_API_KEY`: Clave de API para el servicio FLUX
 
-### Formato de mensajes en cola (video)
+### Backend Principal
+- `MAIN_BACKEND_URL`: URL del backend principal para notificaciones
 
-```json
-{
-  "jobId": "identificador-único-del-job-en-sora",
-  "audioId": 1702672245123,
-  "script": "Texto narrado",
-  "prompt": "Prompt original",
-  "n_seconds": 10,
-  "narration": true,
-  "subtitles": true
-}
-```
+### Database
+- `DATABASE_URL`: URL de conexión a la base de datos PostgreSQL
+- `DB_HOST`: Host de la base de datos
+- `DB_PORT`: Puerto de la base de datos
+- `DB_USERNAME`: Usuario de la base de datos
+- `DB_PASSWORD`: Contraseña de la base de datos
+- `DB_NAME`: Nombre de la base de datos
+- `DB_SSL`: Indica si se usa SSL para la conexión
 
-## Manejo de Carga y Escalabilidad
+## Docker
 
-### ¿El backend principal debe encolar?
+### Imagen Base
+- `node:20-alpine`: Imagen ligera de Node.js 20
 
-**Sí**, se recomienda que el backend principal encole las solicitudes de video por las siguientes razones:
+### Dependencias del Sistema
+- `ffmpeg`: Requerido para procesamiento de video
 
-1. **Evitar sobrecarga**: El endpoint `/videos/generate` realiza operaciones síncronas que pueden tardar varios segundos
-2. **Mejor experiencia de usuario**: Las respuestas inmediatas mejoran la UX
-3. **Tolerancia a fallos**: Los mensajes en cola se procesan reintentando automáticamente
+### Puertos
+- `8080`: Puerto expuesto por la aplicación
 
-### Proceso recomendado para el backend principal:
+### Volúmenes
+- `/app/public/videos`: Archivos de video generados
+- `/app/public/audio`: Archivos de audio generados
+- `/app/public/subtitles`: Archivos de subtítulos generados
+- `/app/public/uploads`: Archivos subidos por los usuarios
+- `/app/public/avatars`: Avatares de usuarios
+- `/app/public/campaigns`: Archivos de campañas
+- `/app/public/image`: Imágenes generadas
 
-1. Recibir solicitud del frontend
-2. Validar datos básicos
-3. Encolar en Service Bus cola `video`
-4. Responder inmediatamente al frontend con "procesando"
-5. El microservicio video-generator procesa el mensaje de la cola
+## Despliegue
 
-## Verificación de Salud del Backend Principal
+### Azure App Service
+- **Runtime**: Node.js 20
+- **SKU**: B1 (Básico) o superior
+- **Sistema Operativo**: Linux
 
-El endpoint `/health` verifica la conectividad con el backend principal:
-
-1. Hace una solicitud GET a `MAIN_BACKEND_URL/ping`
-2. Espera una respuesta HTTP 200
-3. Marca el servicio como "ok" si recibe respuesta exitosa
-
-**Para solucionar el fallo de verificación:**
-
-1. Asegúrese de que el backend principal tenga un endpoint `/ping` que responda con HTTP 200
-2. Verifique que `MAIN_BACKEND_URL` en las variables de entorno apunte a la URL correcta
-3. Confirme que no haya restricciones de red entre los servicios
-
-## Variables de Entorno Requeridas
-
-```env
-# Azure Service Bus
-AZURE_SERVICE_BUS_CONNECTION=Endpoint=sb://...
-AZURE_SERVICE_BUS_QUEUE=video
-AZURE_SERVICE_BUS_QUEUE_IMAGE=imagen
-
-# Azure Storage
-AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=https;...
-AZURE_STORAGE_ACCOUNT_NAME=realculturestorage
-AZURE_STORAGE_KEY=...
-
-# Azure OpenAI
-AZURE_OPENAI_KEY=...
-AZURE_OPENAI_GPT_URL=...
-AZURE_TTS_KEY=...
-AZURE_TTS_ENDPOINT=...
-
-# Sora Service
-SORA_VIDEO_URL=https://sora-video-creator-ekf5hkfvbfebbuf6.canadacentral-01.azurewebsites.net
-
-# Backend Principal
-MAIN_BACKEND_URL=https://realculture-backend-g3b9deb2fja4b8a2.canadacentral-01.azurewebsites.net
-```
+### Variables de Configuración en Azure
+- `WEBSITES_PORT`: 8080
+- `NODE_ENV`: production

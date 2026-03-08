@@ -18,10 +18,13 @@ const audio_module_1 = require("./infrastructure/modules/audio.module");
 const promo_image_module_1 = require("./infrastructure/modules/promo-image.module");
 const sora_module_1 = require("./infrastructure/modules/sora.module");
 const flux_image_module_1 = require("./infrastructure/modules/flux-image.module");
+const influencer_module_1 = require("./infrastructure/modules/influencer.module");
+const website_dna_module_1 = require("./infrastructure/modules/website-dna.module");
 const health_controller_1 = require("./interfaces/controllers/health.controller");
 const llm_module_1 = require("./infrastructure/modules/llm.module");
 const video_queue_consumer_service_1 = require("./infrastructure/services/video-queue-consumer.service");
 const promo_image_queue_consumer_service_1 = require("./infrastructure/services/promo-image-queue-consumer.service");
+const influencer_queue_consumer_service_1 = require("./infrastructure/services/influencer-queue-consumer.service");
 let AppModule = AppModule_1 = class AppModule {
     constructor() {
         this.logger = new common_1.Logger(AppModule_1.name);
@@ -45,6 +48,8 @@ exports.AppModule = AppModule = AppModule_1 = __decorate([
             promo_image_module_1.PromoImageModule,
             sora_module_1.SoraModule,
             flux_image_module_1.FluxImageModule,
+            influencer_module_1.InfluencerModule,
+            website_dna_module_1.WebsiteDnaModule,
             llm_module_1.LLMModule,
         ],
         controllers: [
@@ -53,6 +58,7 @@ exports.AppModule = AppModule = AppModule_1 = __decorate([
         providers: [
             video_queue_consumer_service_1.VideoQueueConsumerService,
             promo_image_queue_consumer_service_1.PromoImageQueueConsumerService,
+            influencer_queue_consumer_service_1.InfluencerQueueConsumerService,
         ],
     })
 ], AppModule);

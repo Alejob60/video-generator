@@ -60,11 +60,15 @@ let ServiceBusService = ServiceBusService_1 = class ServiceBusService {
         this.sbClient = new service_bus_1.ServiceBusClient(connStr);
         const videoQueue = this.configService.get('AZURE_SERVICE_BUS_QUEUE') || 'video';
         const imageQueue = this.configService.get('AZURE_SERVICE_BUS_QUEUE_IMAGE') || 'imagen';
+        const influencerQueue = this.configService.get('AZURE_SERVICE_BUS_QUEUE_INFLUENCER') || 'influencer-video-queue';
         if (videoQueue) {
             this.senders['video'] = this.sbClient.createSender(videoQueue);
         }
         if (imageQueue) {
             this.senders['image'] = this.sbClient.createSender(imageQueue);
+        }
+        if (influencerQueue) {
+            this.senders['influencer'] = this.sbClient.createSender(influencerQueue);
         }
     }
     async sendVideoJobMessage(jobId, timestamp, metadata) {
@@ -110,6 +114,31 @@ let ServiceBusService = ServiceBusService_1 = class ServiceBusService {
         }
         catch (error) {
             this.handleError(error, 'image');
+        }
+    }
+    async sendInfluencerJobMessage(jobId, userId, metadata) {
+        if (!this.senders['influencer']) {
+            throw new Error('❌ Cola de influencer no está configurada correctamente');
+        }
+        const messageBody = {
+            jobId,
+            userId,
+            imageUrl: metadata.imageUrl || '',
+            script: metadata.script || '',
+            voiceId: metadata.voiceId || '',
+            plan: metadata.plan || 'free',
+            timestamp: metadata.timestamp || Date.now(),
+            ...metadata,
+        };
+        try {
+            await this.senders['influencer'].sendMessages({
+                body: messageBody,
+                timeToLive: 1000 * 60 * 10,
+            });
+            this.logger.log(`👤 Influencer Job enviado: jobId=${jobId}, userId=${userId}`);
+        }
+        catch (error) {
+            this.handleError(error, 'influencer');
         }
     }
     handleError(error, queueType) {

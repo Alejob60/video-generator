@@ -59,7 +59,7 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
         this.azureBlobService = azureBlobService;
         this.llmService = llmService;
         this.logger = new common_1.Logger(FluxImageService_1.name);
-        this.endpoint = 'https://labsc-m9j5kbl9-eastus2.services.ai.azure.com/openai/deployments/FLUX-1.1-pro/images/generations';
+        this.endpoint = 'https://labsc-m9j5kbl9-eastus2.services.ai.azure.com/openai/deployments/flux-1.1-pro/images/generations';
         this.apiVersion = '2025-04-01-preview';
         this.apiKey = process.env.FLUX_API_KEY || '';
         this.backendUrl = process.env.MAIN_BACKEND_URL;
@@ -105,7 +105,23 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
             });
             this.logger.log(`📥 FLUX API Response Status: ${response.status}`);
             this.logger.log(`📥 FLUX API Response Headers: ${JSON.stringify(response.headers, null, 2)}`);
-            const imageData = response.data.data?.[0];
+            let imageData;
+            if (typeof response.data === 'string' && (response.data.startsWith('iVBOR') || response.data.startsWith('/9j/'))) {
+                this.logger.log('🎯 Direct base64 response detected');
+                imageData = { b64_json: response.data };
+            }
+            else if (response.data.choices && response.data.choices.length > 0) {
+                imageData = response.data.choices[0];
+            }
+            else if (response.data.data && response.data.data.length > 0) {
+                imageData = response.data.data[0];
+            }
+            else {
+                this.logger.error(`❌ Unexpected response structure. Response keys: ${Object.keys(response.data).join(', ')}`);
+                this.logger.error(`❌ Response data type: ${typeof response.data}`);
+                this.logger.error(`❌ Full response data: ${JSON.stringify(response.data).substring(0, 500)}...`);
+                throw new Error('No image data received from FLUX API');
+            }
             if (!imageData) {
                 throw new Error('No image data received from FLUX API');
             }
@@ -215,7 +231,23 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
             });
             this.logger.log(`📥 FLUX API Response Status: ${response.status}`);
             this.logger.log(`📥 FLUX API Response Headers: ${JSON.stringify(response.headers, null, 2)}`);
-            const imageData = response.data.data?.[0];
+            let imageData;
+            if (typeof response.data === 'string' && (response.data.startsWith('iVBOR') || response.data.startsWith('/9j/'))) {
+                this.logger.log('🎯 Direct base64 response detected');
+                imageData = { b64_json: response.data };
+            }
+            else if (response.data.choices && response.data.choices.length > 0) {
+                imageData = response.data.choices[0];
+            }
+            else if (response.data.data && response.data.data.length > 0) {
+                imageData = response.data.data[0];
+            }
+            else {
+                this.logger.error(`❌ Unexpected response structure. Response keys: ${Object.keys(response.data).join(', ')}`);
+                this.logger.error(`❌ Response data type: ${typeof response.data}`);
+                this.logger.error(`❌ Full response data: ${JSON.stringify(response.data).substring(0, 500)}...`);
+                throw new Error('No image data received from FLUX API');
+            }
             if (!imageData) {
                 throw new Error('No image data received from FLUX API');
             }
@@ -274,7 +306,7 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
             }
             return {
                 imageUrl: blobUrl,
-                filename
+                filename,
             };
         }
         catch (error) {

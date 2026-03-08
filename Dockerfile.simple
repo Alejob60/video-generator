@@ -1,0 +1,15 @@
+FROM realcultureacr.azurecr.io/video-generator:latest
+
+# Copy all necessary files for the fixes
+COPY src/infrastructure/services/flux-image.service.ts /app/src/infrastructure/services/
+COPY src/infrastructure/services/azure-blob.service.ts /app/src/infrastructure/services/
+COPY src/infrastructure/services/llm.service.ts /app/src/infrastructure/services/
+COPY src/infrastructure/services/promo-image.service.ts /app/src/infrastructure/services/
+COPY src/interfaces/controllers/flux-image.controller.ts /app/src/interfaces/controllers/
+COPY src/interfaces/dto/generate-flux-image.dto.ts /app/src/interfaces/dto/
+COPY src/interfaces/dto/generate-promo-image.dto.ts /app/src/interfaces/dto/
+COPY tsconfig.json /app/
+
+# Rebuild the application
+WORKDIR /app
+RUN npm run build

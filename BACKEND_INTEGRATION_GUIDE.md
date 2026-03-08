@@ -1,351 +1,143 @@
-# Guía de Integración para el Backend Principal
+# 🎬 Guía de Integración para el Backend Principal: Módulo de Influencers
 
-## Propósito del Documento
+## 📋 Descripción General
 
-Este documento proporciona instrucciones claras para que el backend principal se integre correctamente con el microservicio de generación de video. Detalla cómo y cuándo usar cada endpoint, el formato de los datos y las mejores prácticas para manejar solicitudes de manera eficiente.
+Se ha implementado un nuevo módulo de "Talking Avatars" (influencers) en el microservicio `video-generator`. Este módulo permite generar videos donde un avatar habla siguiendo un script proporcionado.
 
-## Arquitectura de Integración
+## 🚀 Nuevo Endpoint Disponible
 
+### Endpoint
 ```
-[Frontend] → [Backend Principal] → [Microservicio Video Generator]
-              ↑                        ↑
-         Encola solicitudes      Procesa solicitudes
-         en Service Bus          de forma asíncrona
+POST http://[video-generator-url]/media/influencer
 ```
 
-## Endpoints del Microservicio
-
-### 1. Health Check Endpoints
-
-#### GET `/status`
-**Propósito**: Verificación rápida del estado del servicio
-
-**Cuándo usar**: 
-- Monitoreo de salud del servicio
-- Verificaciones periódicas de disponibilidad
-
-**Respuesta esperada**:
+### Headers Requeridos
 ```json
 {
-  "status": "online",
-  "timestamp": "2025-10-15T20:30:45.123Z",
-  "service": "video-generator",
-  "version": "1.0.0"
+  "Content-Type": "application/json"
 }
 ```
 
-#### GET `/health`
-**Propósito**: Verificación del estado del servicio (básica por defecto, completa opcional)
-
-**Parámetros**:
-- `check` (opcional): 
-  - Sin parámetro o cualquier valor excepto "full": Devuelve estado básico (rápido)
-  - `check=full`: Realiza verificación completa de todos los servicios dependientes (más lento)
-
-**Cuándo usar**:
-- Para verificaciones rápidas: Usar sin parámetros o con `check=basic`
-- Para diagnóstico de problemas de conectividad: Usar con `check=full`
-- Verificaciones de salud detalladas: Usar con `check=full`
-
-**Respuesta básica esperada**:
-```
-{
-  "status": "online",
-  "timestamp": "2025-10-15T20:30:45.123Z",
-  "service": "video-generator",
-  "version": "1.0.0",
-  "note": "For full health check, use ?check=full parameter"
-}
-```
-
-**Respuesta completa esperada**:
+### Payload de Solicitud
 ```json
 {
-  "status": "ok|degraded",
-  "services": {
-    "llm": "ok|fail",
-    "tts": "ok|fail",
-    "sora": "ok|fail",
-    "blob": "ok|fail",
-    "backend": "ok|fail"
-  },
-  "timestamp": "2025-10-15T20:30:45.123Z"
+  "imageUrl": "https://storage.example.com/avatars/influencer1.jpg",
+  "script": "Hola, soy tu asistente virtual y hoy te hablaré sobre inteligencia artificial...",
+  "voiceId": "nova",
+  "plan": "pro"
 }
 ```
 
-### 2. Video Generation Endpoint
+### Descripción de Campos
+- `imageUrl` (string, requerido): URL pública de la imagen del rostro del influencer
+- `script` (string, requerido, min 10 caracteres): Texto que el influencer debe decir
+- `voiceId` (string, requerido): ID de la voz a utilizar (ej: "nova", "jenny", "david")
+- `plan` (string, requerido): Plan del usuario ("free" o "pro")
 
-#### POST `/videos/generate`
-**Propósito**: Generar videos de manera síncrona
-
-**Cuándo usar**:
-- **NO RECOMENDADO** para solicitudes directas de usuarios
-- **RECOMENDADO** solo para pruebas o procesos internos no críticos
-
-**Payload requerido**:
-```json
-{
-  "prompt": "Descripción detallada del video a generar",
-  "n_seconds": 10,
-  "plan": "free|creator|pro",
-  "useVoice": true,
-  "useSubtitles": true,
-  "useMusic": false
-}
-```
-
-**Respuesta**:
+## 📨 Respuesta Exitosa
 ```json
 {
   "success": true,
-  "message": "Medios generados exitosamente",
+  "message": "Influencer video generation initiated successfully",
+  "statusCode": 201,
   "result": {
-    "userId": "admin",
-    "timestamp": 1702672245123,
-    "videoUrl": "https://storage-url/video.mp4?sas-token",
-    "duration": 10,
-    "plan": "free",
-    "fileName": "video.mp4",
-    "soraJobId": "job-123",
-    "generationId": "gen-456",
-    "audioUrl": "https://storage-url/audio.mp3?sas-token",
-    "script": "Texto narrado"
+    "jobId": "job_inf_123456789",
+    "userId": "user123",
+    "timestamp": 1749740000000
   }
 }
 ```
 
-## Integración Recomendada con Colas
+## 🔔 Notificación al Backend Principal
 
-### ¿Por qué usar colas?
+Una vez que el video de influencer se ha generado completamente (después del procesamiento en cola), el microservicio enviará una notificación POST al backend principal:
 
-1. **Escalabilidad**: Maneja picos de tráfico sin sobrecargar el servicio
-2. **Tolerancia a fallos**: Reintenta automáticamente mensajes fallidos
-3. **Experiencia de usuario**: Respuestas inmediatas al frontend
-4. **Procesamiento asíncrono**: Permite operaciones largas sin bloquear
-
-### Proceso de Integración Recomendado
-
-#### Paso 1: Recibir solicitud del frontend
+### Endpoint de Notificación
 ```
-// Ejemplo en Express.js
-app.post('/api/video/generate', async (req, res) => {
-  const { prompt, options } = req.body;
-  const userId = req.user.id;
-  
-  // Validación básica
-  if (!prompt) {
-    return res.status(400).json({ error: 'Prompt requerido' });
-  }
-  
-  // Continuar con el paso 2...
-});
+POST http://[main-backend-url]/media/register-influencer-video
 ```
 
-#### Paso 2: Encolar en Azure Service Bus
-```
-// Enviar mensaje a la cola 'video'
-const message = {
-  userId: userId,
-  prompt: prompt,
-  options: options,
-  timestamp: Date.now(),
-  requestId: uuidv4() // Para seguimiento
-};
-
-await serviceBusService.sendVideoJobMessage(message);
-```
-
-#### Paso 3: Responder inmediatamente al frontend
-```
-res.status(202).json({
-  message: 'Solicitud de video en proceso',
-  requestId: message.requestId,
-  statusUrl: `/api/video/status/${message.requestId}`
-});
-```
-
-#### Paso 4: Implementar endpoint de seguimiento (opcional)
-```
-app.get('/api/video/status/:requestId', async (req, res) => {
-  const { requestId } = req.params;
-  
-  // Consultar estado del proceso (puede ser en base de datos)
-  const status = await getVideoRequestStatus(requestId);
-  
-  res.json(status);
-});
-```
-
-## Formato de Mensajes en Cola
-
-### Para generación de videos
-``json
+### Payload de Notificación
+```json
 {
-  "userId": "identificador-del-usuario",
-  "prompt": "Descripción detallada del video",
-  "options": {
-    "n_seconds": 10,
-    "plan": "free",
-    "useVoice": true,
-    "useSubtitles": true,
-    "useMusic": false
-  },
-  "timestamp": 1702672245123,
-  "requestId": "uuid-único-para-seguimiento"
+  "videoUrl": "https://fake-azure-storage/influencer_result_job_inf_123456789.mp4",
+  "jobId": "job_inf_123456789",
+  "userId": "user123",
+  "imageUrl": "https://storage.example.com/avatars/influencer1.jpg",
+  "script": "Hola, soy tu asistente virtual...",
+  "voiceId": "nova",
+  "plan": "pro",
+  "timestamp": 1749740000000,
+  "status": "completed",
+  "duration": 30,
+  "resolution": "1080p"
 }
 ```
 
-### Para generación de imágenes
-``json
-{
-  "userId": "identificador-del-usuario",
-  "prompt": "Descripción de la imagen a generar",
-  "timestamp": 1702672245123,
-  "requestId": "uuid-único-para-seguimiento"
-}
+## 🔧 Pasos para Integración en el Backend Principal
+
+### 1. Crear el Endpoint de Recepción
+Implementar el endpoint `POST /media/register-influencer-video` en el backend principal para recibir las notificaciones.
+
+### 2. Validar el Payload
+Verificar que los campos requeridos estén presentes en la notificación:
+- `videoUrl`
+- `jobId`
+- `userId`
+- `status`
+
+### 3. Registrar en la Base de Datos
+Guardar la información del video generado en la tabla correspondiente de videos de influencers.
+
+### 4. Actualizar Galería del Usuario
+Agregar el video generado a la galería del usuario (`userId`) para que sea accesible desde la interfaz.
+
+### 5. Control de Créditos
+Dependiendo del `plan` del usuario, aplicar la deducción correspondiente de créditos si aplica.
+
+## 🛡️ Manejo de Errores
+
+### Posibles Errores de Solicitud
+- `400 Bad Request`: Campos faltantes o inválidos
+- `401 Unauthorized`: Autenticación fallida
+- `500 Internal Server Error`: Error interno en el microservicio
+
+### Manejo de Colas
+- El endpoint responde rápidamente (201 Created)
+- El procesamiento pesado ocurre en segundo plano
+- Tiempo estimado de procesamiento: 5-10 segundos
+
+## ⚙️ Variables de Configuración
+
+Las siguientes variables de entorno se han agregado al microservicio:
+- `AZURE_SERVICE_BUS_QUEUE_INFLUENCER`: Nombre de la cola de influencers
+- `MOCK_INFLUENCER_API_URL`: URL de la API simulada de influencers
+- `MOCK_INFLUENCER_API_KEY`: Clave de la API simulada
+
+## 🔁 Proceso Completo
+
+1. El frontend/envío externo llama a `POST /media/influencer`
+2. El microservicio responde inmediatamente con el `jobId`
+3. El trabajo se encola en Azure Service Bus
+4. Un worker procesa el video (simulando 5 segundos de renderizado)
+5. El microservicio notifica al backend principal en `POST /media/register-influencer-video`
+6. El backend principal registra el video y actualiza la galería del usuario
+
+## 🧪 Prueba de Integración
+
+Para probar la integración, puedes hacer una solicitud de ejemplo:
+
+```bash
+curl -X POST "http://[video-generator-url]/media/influencer" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "imageUrl": "https://example.com/avatar.jpg",
+    "script": "Este es un mensaje de prueba para el video de influencer.",
+    "voiceId": "nova",
+    "plan": "free"
+  }'
 ```
 
-## Manejo de Respuestas del Microservicio
+## 📞 Soporte
 
-### URLs con SAS
-Todas las URLs devueltas por el microservicio incluyen tokens SAS para acceso directo:
-``json
-{
-  "videoUrl": "https://storageaccount.blob.core.windows.net/videos/video.mp4?sv=2020-08-04&ss=bfqt&srt=sco&sp=rwdlacupitfx&se=2025-10-16T00:00:00Z&st=2025-10-15T00:00:00Z&spr=https&sig=token",
-  "audioUrl": "https://storageaccount.blob.core.windows.net/audio/audio.mp3?sv=2020-08-04&ss=bfqt&srt=sco&sp=rwdlacupitfx&se=2025-10-16T00:00:00Z&st=2025-10-15T00:00:00Z&spr=https&sig=token"
-}
-```
-
-### Procesamiento de resultados
-Cuando el microservicio completa una tarea, puede:
-1. Enviar una notificación webhook al backend principal
-2. Guardar el resultado en base de datos
-3. Enviar mensaje a otra cola para procesamiento posterior
-
-## Variables de Entorno Requeridas
-
-```env
-# Azure Service Bus para encolar solicitudes
-AZURE_SERVICE_BUS_CONNECTION=Endpoint=sb://realculutrebus.servicebus.windows.net/;...
-AZURE_SERVICE_BUS_QUEUE=video
-AZURE_SERVICE_BUS_QUEUE_IMAGE=imagen
-
-# URL del microservicio de video
-VIDEO_GENERATOR_URL=https://video-converter-drfqdchmdeaehwcd.canadacentral-01.azurewebsites.net
-
-# URL del backend principal (para verificación de salud)
-MAIN_BACKEND_URL=https://tu-backend-principal.azurewebsites.net
-```
-
-## Mejores Prácticas
-
-### 1. Manejo de Errores
-```javascript
-try {
-  await serviceBusService.sendVideoJobMessage(message);
-  // Registrar éxito
-} catch (error) {
-  // Registrar error y posiblemente reintentar
-  logger.error('Error al encolar solicitud de video:', error);
-  
-  // Opcional: Notificar al usuario si el error es crítico
-  res.status(500).json({ error: 'Error al procesar la solicitud' });
-}
-```
-
-### 2. Validación de Datos
-```javascript
-const validateVideoRequest = (data) => {
-  if (!data.prompt || typeof data.prompt !== 'string') {
-    throw new Error('Prompt inválido');
-  }
-  
-  if (data.options && data.options.n_seconds) {
-    if (typeof data.options.n_seconds !== 'number' || data.options.n_seconds < 1 || data.options.n_seconds > 60) {
-      throw new Error('Duración inválida (1-60 segundos)');
-    }
-  }
-  
-  // Otras validaciones...
-};
-```
-
-### 3. Seguimiento y Logging
-```javascript
-// Registrar cada paso del proceso
-logger.info(`Solicitud de video recibida: ${requestId}`);
-logger.info(`Video encolado: ${requestId}`);
-logger.info(`Video procesado exitosamente: ${requestId}`);
-```
-
-## Ejemplo Completo de Integración
-
-```
-// Ruta principal para generar videos
-app.post('/api/video/generate', async (req, res) => {
-  try {
-    const { prompt, options } = req.body;
-    const userId = req.user?.id || 'anonymous';
-    const requestId = uuidv4();
-    
-    // Validación
-    if (!prompt) {
-      return res.status(400).json({ error: 'Prompt requerido' });
-    }
-    
-    // Crear mensaje para la cola
-    const message = {
-      userId,
-      prompt,
-      options: {
-        n_seconds: options?.n_seconds || 10,
-        plan: options?.plan || 'free',
-        useVoice: options?.useVoice || false,
-        useSubtitles: options?.useSubtitles || false,
-        useMusic: options?.useMusic || false
-      },
-      timestamp: Date.now(),
-      requestId
-    };
-    
-    // Encolar solicitud
-    await serviceBusService.sendVideoJobMessage(message);
-    
-    // Registrar en base de datos para seguimiento
-    await saveVideoRequest(message);
-    
-    // Responder inmediatamente
-    res.status(202).json({
-      message: 'Video en proceso de generación',
-      requestId,
-      statusUrl: `/api/video/status/${requestId}`,
-      estimatedTime: '2-5 minutos'
-    });
-    
-  } catch (error) {
-    logger.error('Error al procesar solicitud de video:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-```
-
-## Troubleshooting
-
-### Problemas Comunes
-
-1. **Health check fallando**: 
-   - Verificar que el backend principal tenga endpoint `/ping`
-   - Confirmar conectividad de red entre servicios
-
-2. **Mensajes en cola no procesados**:
-   - Revisar logs del microservicio
-   - Verificar formato de mensajes
-   - Confirmar conectividad con Service Bus
-
-3. **URLs sin acceso**:
-   - Asegurar que todas las URLs incluyan tokens SAS
-   - Verificar permisos en Azure Storage
-
-## Contacto y Soporte
-
-Para problemas de integración, contactar al equipo de desarrollo del microservicio de video.
+Para cualquier problema con la integración, revisar los logs del microservicio en Azure App Service y confirmar que el endpoint de notificación en el backend principal esté disponible y devuelva un código 200 OK.
