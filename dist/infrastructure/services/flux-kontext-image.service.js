@@ -51,20 +51,19 @@ const common_1 = require("@nestjs/common");
 const axios_1 = __importDefault(require("axios"));
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
-const uuid_1 = require("uuid");
 const azure_blob_service_1 = require("./azure-blob.service");
 const llm_service_1 = require("./llm.service");
-const identity_1 = require("@azure/identity");
 const form_data_1 = __importDefault(require("form-data"));
+const openai_1 = require("openai");
 let FluxKontextImageService = FluxKontextImageService_1 = class FluxKontextImageService {
     constructor(azureBlobService, llmService) {
         this.azureBlobService = azureBlobService;
         this.llmService = llmService;
         this.logger = new common_1.Logger(FluxKontextImageService_1.name);
-        this.generationsEndpoint = `${process.env.ENDPOINT_FLUX_KONTENT_PRO}/openai/deployments/FLUX.1-Kontext-pro/images/generations?api-version=2025-04-01-preview`;
-        this.apiKey = process.env.ENDPOINT_FLUX_KONTENT_PRO_API_KEY || '7PAsgxvIw4v494OveKjy4izsjqpXUp6gCCJOMBZkeT0AYA4zKNpSJQQJ99BDACHYHv6XJ3w3AAAAACOGQKWS';
-        this.editsEndpointBase = `${process.env.ENDPOINT_FLUX_KONTENT_PRO}/openai/deployments/FLUX.1-Kontext-pro/images/edits`;
+        this.baseURL = process.env.FLUX_KONTEXT_PRO_BASE_URL || 'https://labsc-m9j5kbl9-eastus2.services.ai.azure.com';
+        this.deployment = process.env.FLUX_KONTEXT_PRO_DEPLOYMENT || 'FLUX.1-Kontext-pro';
         this.apiVersion = '2025-04-01-preview';
+        this.apiKey = process.env.FLUX_KONTEXT_PRO_API_KEY || '';
         this.backendUrl = process.env.MAIN_BACKEND_URL;
     }
     async generateImageAndNotify(userId, dto, referenceImagePath) {
@@ -80,99 +79,101 @@ let FluxKontextImageService = FluxKontextImageService_1 = class FluxKontextImage
             }
         }
         this.logger.log(`📋 Using prompt: ${finalPrompt}`);
-        const credential = new identity_1.DefaultAzureCredential();
-        const tokenResponse = await credential.getToken("https://cognitiveservices.azure.com/.default");
+        const authHeader = `Bearer ${this.apiKey}`;
         let response;
         try {
             if (referenceImagePath) {
-                const editsUrl = `${this.editsEndpointBase}?api-version=${this.apiVersion}`;
+                const editsPath = `openai/deployments/${this.deployment}/images/edits`;
+                const editsUrl = `${this.baseURL}/${editsPath}?api-version=${this.apiVersion}`;
                 const formData = new form_data_1.default();
-                formData.append("prompt", finalPrompt);
-                formData.append("n", "1");
-                formData.append("size", dto.size || '1024x1024');
-                formData.append("image", fs.createReadStream(referenceImagePath));
+                formData.append('model', this.deployment);
+                formData.append('prompt', finalPrompt);
+                formData.append('n', '1');
+                formData.append('size', dto.size || '1024x1024');
+                formData.append('image', fs.createReadStream(referenceImagePath));
                 this.logger.log(`📡 Sending edit request to FLUX.1-Kontext-pro with prompt: ${finalPrompt}`);
                 response = await axios_1.default.post(editsUrl, formData, {
                     headers: {
-                        'Authorization': 'Bearer ' + tokenResponse.token,
-                        ...formData.getHeaders()
+                        'Authorization': authHeader,
+                        ...formData.getHeaders(),
                     },
                 });
             }
             else {
-                const generationsUrl = this.generationsEndpoint;
+                const generationsPath = `openai/deployments/${this.deployment}/images/generations`;
+                const generationsUrl = `${this.baseURL}/${generationsPath}?api-version=${this.apiVersion}`;
                 const payload = {
+                    model: this.deployment,
                     prompt: finalPrompt,
                     output_format: 'png',
                     n: 1,
-                    size: dto.size || '1024x1024'
+                    size: dto.size || '1024x1024',
                 };
                 this.logger.log(`📡 Sending request to FLUX.1-Kontext-pro with payload: ${JSON.stringify(payload, null, 2)}`);
                 response = await axios_1.default.post(generationsUrl, payload, {
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + tokenResponse.token
+                        'Authorization': authHeader,
                     },
-                    responseType: 'json'
+                    responseType: 'json',
                 });
             }
             this.logger.log(`📥 FLUX API Response Status: ${response.status}`);
-            this.logger.log(`📥 FLUX API Response Headers: ${JSON.stringify(response.headers, null, 2)}`);
-            const choices = response.data.choices;
-            if (!choices || choices.length === 0) {
-                this.logger.error(`❌ No choices found in response. Response data: ${JSON.stringify(response.data)}`);
-                throw new Error('No image data received from FLUX API');
+            this.logger.log(`🔍 FLUX API Response Type: response.data=${typeof response.data}, isArray=${Array.isArray(response.data)}`);
+            let imageData;
+            if (response.data && typeof response.data === 'object' && !Array.isArray(response.data)) {
+                if (response.data.b64_json) {
+                    imageData = response.data;
+                    this.logger.log('📊 Using direct response.data.b64_json format');
+                }
+                else if (response.data.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
+                    imageData = response.data.data[0];
+                    this.logger.log('📊 Using response.data.data[0] format');
+                }
+                else if (response.data.choices && Array.isArray(response.data.choices) && response.data.choices.length > 0) {
+                    imageData = response.data.choices[0];
+                    this.logger.log('📊 Using response.data.choices[0] format');
+                }
             }
-            const imageData = choices[0];
-            if (!imageData) {
-                throw new Error('No image data received from FLUX API');
+            else if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+                imageData = response.data[0];
+                this.logger.log('📊 Using response.data[0] format');
             }
-            this.logger.log(`📊 FLUX API Response Structure - Keys: ${Object.keys(imageData).join(', ')}`);
+            else if (response.choices && Array.isArray(response.choices) && response.choices.length > 0) {
+                imageData = response.choices[0];
+                this.logger.log('📊 Using response.choices[0] format');
+            }
+            else {
+                this.logger.error(`❌ Unexpected response structure. Keys: ${Object.keys(response.data || {}).join(', ')}`);
+                throw new Error('No image data received from FLUX API - unexpected response format');
+            }
             this.logger.log(`📊 FLUX API Response - Has URL: ${!!imageData.url}, Has b64_json: ${!!imageData.b64_json}`);
-            if (imageData.url) {
-                this.logger.log(`🌐 FLUX provided direct URL, length: ${imageData.url.length}`);
-            }
-            if (imageData.b64_json) {
-                this.logger.log(`ülü FLUX provided base64 data, length: ${imageData.b64_json.length}`);
-                this.logger.log(`📋 Base64 sample (first 100 chars): ${imageData.b64_json.substring(0, 100)}`);
-            }
             let blobUrl;
             let filename;
             if (imageData.url) {
                 this.logger.log(`🌐 Image URL provided by FLUX: ${imageData.url}`);
-                filename = `flux-kontext-image-${(0, uuid_1.v4)()}.png`;
-                this.logger.log(`📤 Uploading image from URL to Azure Blob Storage with SAS`);
+                filename = `misy-image-${Date.now()}.png`;
                 blobUrl = await this.azureBlobService.uploadFileFromUrlWithSas(imageData.url, `images/${filename}`);
                 this.logger.log(`✅ Image uploaded to Azure Blob Storage from URL with SAS: ${blobUrl}`);
             }
             else if (imageData.b64_json) {
-                this.logger.log(`ülü Base64 data provided by FLUX, length: ${imageData.b64_json.length}`);
+                this.logger.log(`📝 Base64 data provided by FLUX, length: ${imageData.b64_json.length}`);
                 const isValidBase64 = /^[A-Za-z0-9+/]*={0,2}$/.test(imageData.b64_json);
                 this.logger.log(`🔍 Base64 validation result: ${isValidBase64}`);
-                this.logger.log(`📋 Base64 sample (first 100 chars): ${imageData.b64_json.substring(0, 100)}`);
                 const cleanBase64 = imageData.b64_json.replace(/\s/g, '');
-                this.logger.log(`🧹 Cleaned base64 data, length: ${cleanBase64.length}`);
                 const buffer = Buffer.from(cleanBase64, 'base64');
                 this.logger.log(`💾 Decoded buffer size: ${buffer.length} bytes`);
                 const pngHeader = buffer.slice(0, 8);
                 const isPng = pngHeader.equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]));
-                this.logger.log(`🔍 PNG header validation: ${isPng ? 'Valid PNG' : 'Invalid PNG header'})`);
-                this.logger.log(`🔍 PNG header bytes: ${pngHeader.toString('hex').toUpperCase()}`);
-                filename = `flux-kontext-image-${(0, uuid_1.v4)()}.png`;
+                this.logger.log(`🔍 PNG header validation: ${isPng ? 'Valid PNG' : 'Invalid PNG header'}`);
+                filename = `misy-image-${Date.now()}.png`;
                 const tempPath = path.join(__dirname, '..', '..', '..', 'temp', filename);
                 const tempDir = path.dirname(tempPath);
                 if (!fs.existsSync(tempDir)) {
                     fs.mkdirSync(tempDir, { recursive: true });
                 }
-                this.logger.log(`💾 Writing image to temporary file: ${tempPath}`);
                 fs.writeFileSync(tempPath, buffer);
-                const stats = fs.statSync(tempPath);
-                this.logger.log(`🔍 Temporary file size: ${stats.size} bytes`);
-                const verifyBuffer = fs.readFileSync(tempPath);
-                this.logger.log(`🔍 Verification buffer size: ${verifyBuffer.length} bytes`);
-                const verifyPngHeader = verifyBuffer.slice(0, 8);
-                this.logger.log(`🔍 Verification PNG header bytes: ${verifyPngHeader.toString('hex').toUpperCase()}`);
-                this.logger.log(`📤 Uploading image to Azure Blob Storage with SAS`);
+                this.logger.log(`💾 Writing image to temporary file: ${tempPath}`);
                 blobUrl = await this.azureBlobService.uploadFileToBlobWithSas(tempPath, `images/${filename}`, 'image/png');
                 this.logger.log(`✅ Image uploaded to Azure Blob Storage with SAS: ${blobUrl}`);
                 this.logger.log(`💾 Keeping temporary file in temp folder: ${tempPath}`);
@@ -194,136 +195,78 @@ let FluxKontextImageService = FluxKontextImageService_1 = class FluxKontextImage
             return {
                 imageUrl: blobUrl,
                 filename,
-                prompt: finalPrompt
+                prompt: finalPrompt,
             };
         }
         catch (error) {
             this.logger.error('❌ Error generating image with FLUX.1-Kontext-pro:', error);
-            throw new Error(`Failed to generate image with FLUX: ${error.message || error}`);
+            this.logger.warn('⚠️ FALLBACK: Attempting to generate with DALL-E 3...');
+            try {
+                return await this.generateWithDalleFallback(userId, finalPrompt);
+            }
+            catch (dalleError) {
+                this.logger.error('❌ Fallback to DALL-E also failed:', dalleError);
+                throw new Error(`Failed to generate image with FLUX and DALL-E fallback: ${error.message}`);
+            }
         }
     }
-    async generateImage(dto, referenceImagePath) {
-        let finalPrompt = dto.prompt;
-        if (dto.isJsonPrompt) {
-            try {
-                finalPrompt = await this.llmService.improveImagePrompt(dto.prompt);
-                this.logger.log(`📋 Converted JSON prompt to natural language with LLM: ${finalPrompt}`);
-            }
-            catch (error) {
-                this.logger.warn(`⚠️ Failed to convert JSON prompt with LLM, using as-is: ${error.message}`);
-                finalPrompt = dto.prompt;
-            }
+    async generateWithDalleFallback(userId, prompt) {
+        this.logger.log('🔄 Using DALL-E 3 as fallback for FLUX');
+        const apiKey = process.env.AZURE_OPENAI_IMAGE_API_KEY || process.env.OPENAI_API_KEY;
+        const endpoint = process.env.AZURE_OPENAI_IMAGE_ENDPOINT || 'https://api.openai.com/v1';
+        if (!apiKey) {
+            throw new Error('DALL-E API key not configured for fallback');
         }
-        this.logger.log(`📋 Using prompt: ${finalPrompt}`);
-        const credential = new identity_1.DefaultAzureCredential();
-        const tokenResponse = await credential.getToken("https://cognitiveservices.azure.com/.default");
-        let response;
-        try {
-            if (referenceImagePath) {
-                const editsUrl = `${this.editsEndpointBase}?api-version=${this.apiVersion}`;
-                const formData = new form_data_1.default();
-                formData.append("prompt", finalPrompt);
-                formData.append("n", "1");
-                formData.append("size", dto.size || '1024x1024');
-                formData.append("image", fs.createReadStream(referenceImagePath));
-                this.logger.log(`📡 Sending edit request to FLUX.1-Kontext-pro with prompt: ${finalPrompt}`);
-                response = await axios_1.default.post(editsUrl, formData, {
-                    headers: {
-                        'Authorization': 'Bearer ' + tokenResponse.token,
-                        ...formData.getHeaders()
-                    },
-                });
-            }
-            else {
-                const generationsUrl = this.generationsEndpoint;
-                const payload = {
-                    prompt: finalPrompt,
-                    output_format: 'png',
-                    n: 1,
-                    size: dto.size || '1024x1024'
-                };
-                this.logger.log(`📡 Sending request to FLUX.1-Kontext-pro with payload: ${JSON.stringify(payload, null, 2)}`);
-                response = await axios_1.default.post(generationsUrl, payload, {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + tokenResponse.token
-                    },
-                    responseType: 'json'
-                });
-            }
-            this.logger.log(`📥 FLUX API Response Status: ${response.status}`);
-            this.logger.log(`📥 FLUX API Response Headers: ${JSON.stringify(response.headers, null, 2)}`);
-            const choices = response.data.choices;
-            if (!choices || choices.length === 0) {
-                this.logger.error(`❌ No choices found in response. Response data: ${JSON.stringify(response.data)}`);
-                throw new Error('No image data received from FLUX API');
-            }
-            const imageData = choices[0];
-            if (!imageData) {
-                throw new Error('No image data received from FLUX API');
-            }
-            this.logger.log(`📊 FLUX API Response Structure - Keys: ${Object.keys(imageData).join(', ')}`);
-            this.logger.log(`📊 FLUX API Response - Has URL: ${!!imageData.url}, Has b64_json: ${!!imageData.b64_json}`);
-            if (imageData.url) {
-                this.logger.log(`🌐 FLUX provided direct URL, length: ${imageData.url.length}`);
-            }
-            if (imageData.b64_json) {
-                this.logger.log(`ülü FLUX provided base64 data, length: ${imageData.b64_json.length}`);
-                this.logger.log(`📋 Base64 sample (first 100 chars): ${imageData.b64_json.substring(0, 100)}`);
-            }
-            let blobUrl;
-            let filename;
-            if (imageData.url) {
-                this.logger.log(`🌐 Image URL provided by FLUX: ${imageData.url}`);
-                filename = `flux-kontext-image-${(0, uuid_1.v4)()}.png`;
-                this.logger.log(`📤 Uploading image from URL to Azure Blob Storage with SAS`);
-                blobUrl = await this.azureBlobService.uploadFileFromUrlWithSas(imageData.url, `images/${filename}`);
-                this.logger.log(`✅ Image uploaded to Azure Blob Storage from URL with SAS: ${blobUrl}`);
-            }
-            else if (imageData.b64_json) {
-                this.logger.log(`ülü Base64 data provided by FLUX, length: ${imageData.b64_json.length}`);
-                const isValidBase64 = /^[A-Za-z0-9+/]*={0,2}$/.test(imageData.b64_json);
-                this.logger.log(`🔍 Base64 validation result: ${isValidBase64}`);
-                this.logger.log(`📋 Base64 sample (first 100 chars): ${imageData.b64_json.substring(0, 100)}`);
-                const cleanBase64 = imageData.b64_json.replace(/\s/g, '');
-                this.logger.log(`🧹 Cleaned base64 data, length: ${cleanBase64.length}`);
-                const buffer = Buffer.from(cleanBase64, 'base64');
-                this.logger.log(`💾 Decoded buffer size: ${buffer.length} bytes`);
-                const pngHeader = buffer.slice(0, 8);
-                const isPng = pngHeader.equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]));
-                this.logger.log(`🔍 PNG header validation: ${isPng ? 'Valid PNG' : 'Invalid PNG header'})`);
-                this.logger.log(`🔍 PNG header bytes: ${pngHeader.toString('hex').toUpperCase()}`);
-                filename = `flux-kontext-image-${(0, uuid_1.v4)()}.png`;
-                const tempPath = path.join(__dirname, '..', '..', '..', 'temp', filename);
-                const tempDir = path.dirname(tempPath);
-                if (!fs.existsSync(tempDir)) {
-                    fs.mkdirSync(tempDir, { recursive: true });
-                }
-                this.logger.log(`💾 Writing image to temporary file: ${tempPath}`);
-                fs.writeFileSync(tempPath, buffer);
-                const stats = fs.statSync(tempPath);
-                this.logger.log(`🔍 Temporary file size: ${stats.size} bytes`);
-                const verifyBuffer = fs.readFileSync(tempPath);
-                this.logger.log(`🔍 Verification buffer size: ${verifyBuffer.length} bytes`);
-                const verifyPngHeader = verifyBuffer.slice(0, 8);
-                this.logger.log(`🔍 Verification PNG header bytes: ${verifyPngHeader.toString('hex').toUpperCase()}`);
-                this.logger.log(`📤 Uploading image to Azure Blob Storage with SAS`);
-                blobUrl = await this.azureBlobService.uploadFileToBlobWithSas(tempPath, `images/${filename}`, 'image/png');
-                this.logger.log(`✅ Image uploaded to Azure Blob Storage with SAS: ${blobUrl}`);
-                this.logger.log(`💾 Keeping temporary file in temp folder: ${tempPath}`);
-            }
-            else {
-                throw new Error('Unexpected response format from FLUX API - no URL or base64 data found');
-            }
-            return {
+        const openai = new openai_1.OpenAI({
+            apiKey,
+            baseURL: endpoint,
+        });
+        const response = await openai.images.generate({
+            model: 'dall-e-3',
+            prompt: prompt,
+            n: 1,
+            size: '1024x1024',
+        });
+        const imageUrl = response.data?.[0]?.url;
+        if (!imageUrl) {
+            throw new Error('DALL-E fallback did not return an image URL');
+        }
+        this.logger.log(`🌐 DALL-E fallback URL: ${imageUrl}`);
+        const imageResponse = await axios_1.default.get(imageUrl, { responseType: 'arraybuffer' });
+        const buffer = Buffer.from(imageResponse.data);
+        const filename = `promo-${Date.now()}.png`;
+        const tempPath = path.join(__dirname, '..', '..', '..', 'temp', filename);
+        const tempDir = path.dirname(tempPath);
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
+        fs.writeFileSync(tempPath, buffer);
+        this.logger.log(`💾 Saved DALL-E fallback to temp: ${tempPath}`);
+        const blobUrl = await this.azureBlobService.uploadFileToBlobWithSas(tempPath, `images/${filename}`, 'image/png');
+        this.logger.log(`✅ DALL-E fallback uploaded to Azure: ${blobUrl}`);
+        await fetch(`${this.backendUrl}/flux-kontext-image/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                userId,
+                prompt,
                 imageUrl: blobUrl,
-                filename
-            };
-        }
-        catch (error) {
-            this.logger.error('❌ Error generating image with FLUX.1-Kontext-pro:', error);
-            throw new Error(`Failed to generate image with FLUX: ${error.message || error}`);
-        }
+                filename,
+                fallbackUsed: true,
+            }),
+        });
+        return {
+            imageUrl: blobUrl,
+            filename,
+            prompt,
+        };
+    }
+    async generateImage(dto, referenceImagePath) {
+        const result = await this.generateImageAndNotify('internal', dto, referenceImagePath);
+        return {
+            imageUrl: result.imageUrl,
+            filename: result.filename,
+        };
     }
 };
 exports.FluxKontextImageService = FluxKontextImageService;

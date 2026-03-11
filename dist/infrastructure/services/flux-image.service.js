@@ -51,7 +51,6 @@ const common_1 = require("@nestjs/common");
 const axios_1 = __importDefault(require("axios"));
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
-const uuid_1 = require("uuid");
 const azure_blob_service_1 = require("./azure-blob.service");
 const llm_service_1 = require("./llm.service");
 let FluxImageService = FluxImageService_1 = class FluxImageService {
@@ -138,7 +137,8 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
             let filename;
             if (imageData.url) {
                 this.logger.log(`🌐 Image URL provided by FLUX: ${imageData.url}`);
-                filename = `flux-image-${(0, uuid_1.v4)()}.png`;
+                const uniqueId = Date.now();
+                filename = `misy-image-${uniqueId}.png`;
                 this.logger.log(`📤 Uploading image from URL to Azure Blob Storage with SAS`);
                 blobUrl = await this.azureBlobService.uploadFileFromUrlWithSas(imageData.url, `images/${filename}`);
                 this.logger.log(`✅ Image uploaded to Azure Blob Storage from URL with SAS: ${blobUrl}`);
@@ -156,7 +156,8 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
                 const isPng = pngHeader.equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]));
                 this.logger.log(`🔍 PNG header validation: ${isPng ? 'Valid PNG' : 'Invalid PNG header'}`);
                 this.logger.log(`🔍 PNG header bytes: ${pngHeader.toString('hex').toUpperCase()}`);
-                filename = `flux-image-${(0, uuid_1.v4)()}.png`;
+                const uniqueId = Date.now();
+                filename = `misy-image-${uniqueId}.png`;
                 const tempPath = path.join(__dirname, '..', '..', '..', 'temp', filename);
                 const tempDir = path.dirname(tempPath);
                 if (!fs.existsSync(tempDir)) {
@@ -264,7 +265,8 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
             let filename;
             if (imageData.url) {
                 this.logger.log(`🌐 Image URL provided by FLUX: ${imageData.url}`);
-                filename = `flux-image-${(0, uuid_1.v4)()}.png`;
+                const uniqueId = Date.now();
+                filename = `misy-image-${uniqueId}.png`;
                 this.logger.log(`📤 Uploading image from URL to Azure Blob Storage with SAS`);
                 blobUrl = await this.azureBlobService.uploadFileFromUrlWithSas(imageData.url, `images/${filename}`);
                 this.logger.log(`✅ Image uploaded to Azure Blob Storage from URL with SAS: ${blobUrl}`);
@@ -282,7 +284,8 @@ let FluxImageService = FluxImageService_1 = class FluxImageService {
                 const isPng = pngHeader.equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]));
                 this.logger.log(`🔍 PNG header validation: ${isPng ? 'Valid PNG' : 'Invalid PNG header'}`);
                 this.logger.log(`🔍 PNG header bytes: ${pngHeader.toString('hex').toUpperCase()}`);
-                filename = `flux-image-${(0, uuid_1.v4)()}.png`;
+                const uniqueId = Date.now();
+                filename = `misy-image-${uniqueId}.png`;
                 const tempPath = path.join(__dirname, '..', '..', '..', 'temp', filename);
                 const tempDir = path.dirname(tempPath);
                 if (!fs.existsSync(tempDir)) {

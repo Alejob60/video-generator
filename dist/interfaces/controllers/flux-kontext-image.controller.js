@@ -12,7 +12,6 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
 var FluxKontextImageController_1;
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FluxKontextImageController = void 0;
 const common_1 = require("@nestjs/common");
@@ -20,56 +19,136 @@ const platform_express_1 = require("@nestjs/platform-express");
 const multer_1 = require("multer");
 const path_1 = require("path");
 const flux_kontext_image_service_1 = require("../../infrastructure/services/flux-kontext-image.service");
-const generate_flux_kontext_image_dto_1 = require("../dto/generate-flux-kontext-image.dto");
+const llm_service_1 = require("../../infrastructure/services/llm.service");
 let FluxKontextImageController = FluxKontextImageController_1 = class FluxKontextImageController {
-    constructor(fluxKontextImageService) {
-        this.fluxKontextImageService = fluxKontextImageService;
+    constructor(fluxKontextService, llmService) {
+        this.fluxKontextService = fluxKontextService;
+        this.llmService = llmService;
         this.logger = new common_1.Logger(FluxKontextImageController_1.name);
     }
-    async generateFluxKontextImage(dto, referenceImage, req) {
-        const userId = req.user?.id || 'anon';
+    async generateFromText(dto, userId = 'anon') {
         try {
-            this.logger.log(`📸 Generating FLUX.1-Kontext-pro image for user ${userId} with prompt: ${dto.prompt}`);
-            const result = await this.fluxKontextImageService.generateImageAndNotify(userId, dto, referenceImage?.path);
-            this.logger.log(`✅ FLUX.1-Kontext-pro image generated successfully for user ${userId}`);
+            let finalPrompt = dto.prompt;
+            let enhancedPromptUsed = false;
+            if (dto.enhancePrompt === true) {
+                this.logger.log('🔄 Enhancing prompt with LLM...');
+                try {
+                    const improvedPrompt = await this.llmService.improveImagePrompt(dto.prompt);
+                    finalPrompt = improvedPrompt;
+                    enhancedPromptUsed = true;
+                    this.logger.log(`✅ Prompt enhanced successfully`);
+                    this.logger.log(`📝 Original: ${dto.prompt.substring(0, 80)}...`);
+                    this.logger.log(`📝 Enhanced: ${finalPrompt.substring(0, 80)}...`);
+                }
+                catch (llmError) {
+                    this.logger.warn(`⚠️ LLM enhancement failed: ${llmError.message}`);
+                    this.logger.warn('⚠️ Using original prompt as fallback');
+                }
+            }
+            this.logger.log(`📸 Generating FLUX Kontext image for user: ${userId}`);
+            this.logger.log(`📝 Final prompt: ${finalPrompt}`);
+            this.logger.log(`📏 Size: ${dto.size || '1024x1024'}`);
+            const result = await this.fluxKontextService.generateImageAndNotify(userId, { ...dto, prompt: finalPrompt });
             return {
                 success: true,
-                message: '✅ FLUX.1-Kontext-pro image generated successfully',
+                message: '✅ FLUX Kontext image generated successfully',
                 data: {
                     imageUrl: result.imageUrl,
+                    prompt: finalPrompt,
                     filename: result.filename,
-                    userId,
-                    prompt: result.prompt
-                }
+                    enhancedPromptUsed,
+                },
             };
         }
         catch (error) {
-            this.logger.error(`❌ Error generating FLUX.1-Kontext-pro image for user ${userId}:`, error);
-            throw new common_1.HttpException(`Error generating FLUX.1-Kontext-pro image: ${error.message || error}`, common_1.HttpStatus.INTERNAL_SERVER_ERROR);
+            this.logger.error(`❌ Error: ${error.message}`, error.stack);
+            throw new Error(`FLUX Kontext generation failed: ${error.message}`);
+        }
+    }
+    async generateWithReferenceImage(body, referenceImage, userId = 'anon') {
+        try {
+            if (!referenceImage) {
+                throw new Error('Reference image is required');
+            }
+            this.logger.log(`📸 FLUX Kontext with reference image for user: ${userId}`);
+            this.logger.log(`📝 Prompt: ${body.prompt}`);
+            this.logger.log(`📁 Reference image: ${referenceImage.filename} (${referenceImage.size} bytes)`);
+            let finalPrompt = body.prompt;
+            let enhancedPromptUsed = false;
+            if (body.enhancePrompt === true) {
+                try {
+                    const improvedPrompt = await this.llmService.improveImagePrompt(body.prompt);
+                    finalPrompt = improvedPrompt;
+                    enhancedPromptUsed = true;
+                    this.logger.log(`✅ Prompt enhanced: ${finalPrompt}`);
+                }
+                catch (llmError) {
+                    this.logger.warn(`⚠️ LLM enhancement failed, using original prompt`);
+                }
+            }
+            const result = await this.fluxKontextService.generateImageAndNotify(userId, {
+                prompt: finalPrompt,
+                plan: body.plan || 'PRO',
+                size: '1024x1024',
+            }, referenceImage.path);
+            return {
+                success: true,
+                message: '✅ FLUX Kontext image generated with reference',
+                data: {
+                    imageUrl: result.imageUrl,
+                    prompt: finalPrompt,
+                    filename: result.filename,
+                    referenceImageName: referenceImage.originalname,
+                    enhancedPromptUsed,
+                },
+            };
+        }
+        catch (error) {
+            this.logger.error(`❌ Error generating with reference: ${error.message}`, error.stack);
+            throw new Error(`FLUX Kontext generation with reference failed: ${error.message}`);
         }
     }
 };
 exports.FluxKontextImageController = FluxKontextImageController;
 __decorate([
-    (0, common_1.Post)(),
+    (0, common_1.Post)('flux-kontext/image'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Headers)('x-user-id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", Promise)
+], FluxKontextImageController.prototype, "generateFromText", null);
+__decorate([
+    (0, common_1.Post)('flux-kontext/image-with-reference'),
     (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('referenceImage', {
         storage: (0, multer_1.diskStorage)({
-            destination: './public/uploads',
-            filename: (_req, file, cb) => {
+            destination: './temp',
+            filename: (req, file, callback) => {
                 const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-                cb(null, `${uniqueSuffix}${(0, path_1.extname)(file.originalname)}`);
+                const ext = (0, path_1.extname)(file.originalname);
+                callback(null, `flux-ref-${uniqueSuffix}${ext}`);
             },
         }),
+        fileFilter: (req, file, callback) => {
+            if (!file.originalname.match(/\.(jpg|jpeg|png)$/i)) {
+                return callback(new Error('Only image files (JPG, PNG) are allowed'), false);
+            }
+            callback(null, true);
+        },
+        limits: {
+            fileSize: 10 * 1024 * 1024,
+        },
     })),
     __param(0, (0, common_1.Body)()),
     __param(1, (0, common_1.UploadedFile)()),
-    __param(2, (0, common_1.Req)()),
+    __param(2, (0, common_1.Headers)('x-user-id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [generate_flux_kontext_image_dto_1.GenerateFluxKontextImageDto, Object, Object]),
+    __metadata("design:paramtypes", [Object, Object, String]),
     __metadata("design:returntype", Promise)
-], FluxKontextImageController.prototype, "generateFluxKontextImage", null);
+], FluxKontextImageController.prototype, "generateWithReferenceImage", null);
 exports.FluxKontextImageController = FluxKontextImageController = FluxKontextImageController_1 = __decorate([
-    (0, common_1.Controller)('media/flux-kontext-image'),
-    __metadata("design:paramtypes", [typeof (_a = typeof flux_kontext_image_service_1.FluxKontextImageService !== "undefined" && flux_kontext_image_service_1.FluxKontextImageService) === "function" ? _a : Object])
+    (0, common_1.Controller)('media'),
+    __metadata("design:paramtypes", [flux_kontext_image_service_1.FluxKontextImageService,
+        llm_service_1.LLMService])
 ], FluxKontextImageController);
 //# sourceMappingURL=flux-kontext-image.controller.js.map

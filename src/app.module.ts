@@ -10,9 +10,9 @@ import { VideoModule } from './infrastructure/modules/video.module';
 import { AudioModule } from './infrastructure/modules/audio.module';
 import { PromoImageModule } from './infrastructure/modules/promo-image.module';
 import { SoraModule } from './infrastructure/modules/sora.module';
-import { FluxImageModule } from './infrastructure/modules/flux-image.module';
-// FLUX.1-Kontext-pro modules removed - using only FLUX 2 Pro
-import { InfluencerModule } from './infrastructure/modules/influencer.module'; // Módulo de influencers
+import { ImageGenerationModule } from './infrastructure/modules/image-generation.module'; // NEW - FLUX Kontext + DALL-E
+// import { FluxImageModule } from './infrastructure/modules/flux-image.module'; // DISABLED
+// import { InfluencerModule } from './infrastructure/modules/influencer.module'; // Módulo de influencers
 import { WebsiteDnaModule } from './infrastructure/modules/website-dna.module'; // Nuevo módulo de extracción de ADN
 
 // 🧩 Controladores
@@ -39,9 +39,8 @@ import { InfluencerQueueConsumerService } from './infrastructure/services/influe
     AudioModule,
     PromoImageModule,
     SoraModule,
-    FluxImageModule,
-    // FLUX.1-Kontext-pro modules removed - using only FLUX 2 Pro
-    InfluencerModule, // Módulo de influencers
+    ImageGenerationModule, // NEW - FLUX Kontext + DALL-E
+    // FluxImageModule, // DISABLED
     WebsiteDnaModule, // Módulo de extracción de ADN
     LLMModule,
   ],

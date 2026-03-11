@@ -1,0 +1,21 @@
+{
+  "success": true,
+  "message": "Ô£à Imagen generada correctamente",
+  "result": {
+    "imageUrl": "https://realculturestorage.blob.core.windows.net/images/promo_20260308234604037.png?sv=2025-07-05&spr=https&st=2026-03-08T23%3A46%3A20Z&se=2026-03-09T23%3A46%3A20Z&sr=b&sp=r&sig=vAk%2BmMBKdM7qUvL0xiB19wbynsnFpd6lEASE5MExkH0%3D",
+    "prompt": "A red apple on white background",
+    "imagePath": null,
+    "filename": "promo_20260308234604037.png"
+  }
+}
+,
+{
+  "success": true,
+  "message": "Ô£à Imagen generada correctamente",
+  "result": {
+    "imageUrl": "https://realculturestorage.blob.core.windows.net/images/images/flux-image-909e3618-964d-4943-acd4-3634dd98a95b.png?sv=2025-07-05&spr=https&st=2026-03-08T23%3A46%3A33Z&se=2026-03-09T23%3A46%3A33Z&sr=b&sp=r&sig=kUEhvUji9SqDa0kQhyYXkQkvSC2vsOMAyVuzQrPuvHM%3D",
+    "prompt": "A futuristic robot in cyberpunk city",
+    "imagePath": null,
+    "filename": "flux-image-909e3618-964d-4943-acd4-3634dd98a95b.png"
+  }
+}

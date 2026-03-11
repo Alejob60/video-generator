@@ -1,18 +1,36 @@
-import { Request } from 'express';
 import { FluxKontextImageService } from '../../infrastructure/services/flux-kontext-image.service';
-import { GenerateFluxKontextImageDto } from '../dto/generate-flux-kontext-image.dto';
+import { GenerateFluxImageDto } from '../dto/generate-flux-image.dto';
+import { LLMService } from '../../infrastructure/services/llm.service';
 export declare class FluxKontextImageController {
-    private readonly fluxKontextImageService;
+    private readonly fluxKontextService;
+    private readonly llmService;
     private readonly logger;
-    constructor(fluxKontextImageService: FluxKontextImageService);
-    generateFluxKontextImage(dto: GenerateFluxKontextImageDto, referenceImage: Express.Multer.File, req: Request): Promise<{
+    constructor(fluxKontextService: FluxKontextImageService, llmService: LLMService);
+    generateFromText(dto: GenerateFluxImageDto & {
+        enhancePrompt?: boolean;
+    }, userId?: string): Promise<{
         success: boolean;
         message: string;
         data: {
-            imageUrl: any;
-            filename: any;
-            userId: any;
-            prompt: any;
+            imageUrl: string;
+            prompt: string;
+            filename: string;
+            enhancedPromptUsed: boolean;
+        };
+    }>;
+    generateWithReferenceImage(body: {
+        prompt: string;
+        plan: string;
+        enhancePrompt?: boolean;
+    }, referenceImage: Express.Multer.File, userId?: string): Promise<{
+        success: boolean;
+        message: string;
+        data: {
+            imageUrl: string;
+            prompt: string;
+            filename: string;
+            referenceImageName: string;
+            enhancedPromptUsed: boolean;
         };
     }>;
 }

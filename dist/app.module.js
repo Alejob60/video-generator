@@ -17,8 +17,7 @@ const video_module_1 = require("./infrastructure/modules/video.module");
 const audio_module_1 = require("./infrastructure/modules/audio.module");
 const promo_image_module_1 = require("./infrastructure/modules/promo-image.module");
 const sora_module_1 = require("./infrastructure/modules/sora.module");
-const flux_image_module_1 = require("./infrastructure/modules/flux-image.module");
-const influencer_module_1 = require("./infrastructure/modules/influencer.module");
+const image_generation_module_1 = require("./infrastructure/modules/image-generation.module");
 const website_dna_module_1 = require("./infrastructure/modules/website-dna.module");
 const health_controller_1 = require("./interfaces/controllers/health.controller");
 const llm_module_1 = require("./infrastructure/modules/llm.module");
@@ -47,8 +46,7 @@ exports.AppModule = AppModule = AppModule_1 = __decorate([
             audio_module_1.AudioModule,
             promo_image_module_1.PromoImageModule,
             sora_module_1.SoraModule,
-            flux_image_module_1.FluxImageModule,
-            influencer_module_1.InfluencerModule,
+            image_generation_module_1.ImageGenerationModule,
             website_dna_module_1.WebsiteDnaModule,
             llm_module_1.LLMModule,
         ],

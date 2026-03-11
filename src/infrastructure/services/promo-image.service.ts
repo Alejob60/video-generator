@@ -3,8 +3,7 @@ import { AzureOpenAI, OpenAI } from 'openai';
 import * as fs from 'fs';
 import * as path from 'path';
 import { AzureBlobService } from './azure-blob.service';
-import { FluxImageService } from './flux-image.service';
-import { GenerateFluxImageDto } from '../../interfaces/dto/generate-flux-image.dto';
+import { LLMService } from './llm.service';
 
 @Injectable()
 export class PromoImageService {
@@ -18,7 +17,6 @@ export class PromoImageService {
 
   constructor(
     private readonly azureBlobService: AzureBlobService,
-    private readonly fluxImageService: FluxImageService,
   ) {
     this.openai = new OpenAI({
       apiKey: this.apiKey,
@@ -50,7 +48,8 @@ export class PromoImageService {
     if (prompt && isJsonPrompt) {
       try {
         // Use LLM to convert JSON prompt to a natural language description
-        finalPrompt = await this.fluxImageService['llmService'].improveImagePrompt(prompt);
+        const llmService = new LLMService();
+        finalPrompt = await llmService.improveImagePrompt(prompt);
         this.logger.log(`📋 Converted JSON prompt to natural language with LLM: ${finalPrompt}`);
       } catch (error: any) {
         this.logger.warn(`⚠️ Failed to convert JSON prompt with LLM, using as-is: ${error.message}`);
@@ -62,31 +61,17 @@ export class PromoImageService {
       finalPrompt = prompt;
     }
 
-    // Generar imagen y subirla
+    // Generar imagen y subirla - SOLO DALL-E (FLUX removido)
     let azureUrl: string;
     let localFilename: string;
 
-    if (useFlux && finalPrompt) {
-      // Usar FLUX-1.1-pro para generar la imagen
-      this.logger.log(`🤖 Usando FLUX-1.1-pro para generar imagen para usuario ${userId}`);
-      // Create a DTO object instead of just passing a string
-      const fluxDto: GenerateFluxImageDto = {
-        prompt: finalPrompt,
-        plan: 'FREE', // Default plan, you might want to pass this as a parameter
-        isJsonPrompt: false // Set to false since we've already processed the JSON prompt
-      };
-      const fluxResult = await this.fluxImageService.generateImage(fluxDto);
-      azureUrl = fluxResult.imageUrl;
-      localFilename = fluxResult.filename;
-    } else {
-      // Usar DALL·E para generar la imagen (comportamiento original)
-      this.logger.log(`🤖 Usando DALL·E para generar imagen para usuario ${userId}`);
-      const result = await this.generateImageWithText({
-        prompt: finalPrompt!,
-      });
-      azureUrl = result.azureUrl;
-      localFilename = result.localFilename;
-    }
+    // Always use DALL-E (FLUX integration removed)
+    this.logger.log(`🤖 Usando DALL·E para generar imagen para usuario ${userId}`);
+    const result = await this.generateImageWithText({
+      prompt: finalPrompt!,
+    });
+    azureUrl = result.azureUrl;
+    localFilename = result.localFilename;
 
     // Notificar al backend principal
     await fetch(`${this.backendUrl}/promo-image/complete`, {

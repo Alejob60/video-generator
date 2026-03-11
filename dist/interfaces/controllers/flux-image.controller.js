@@ -17,12 +17,16 @@ exports.FluxImageController = void 0;
 const common_1 = require("@nestjs/common");
 const flux_image_service_1 = require("../../infrastructure/services/flux-image.service");
 const promo_image_service_1 = require("../../infrastructure/services/promo-image.service");
+const flux_kontext_image_service_1 = require("../../infrastructure/services/flux-kontext-image.service");
+const flux_2_pro_service_1 = require("../../infrastructure/services/flux-2-pro.service");
 const generate_promo_image_dto_1 = require("../dto/generate-promo-image.dto");
 const generate_flux_image_dto_1 = require("../dto/generate-flux-image.dto");
 let FluxImageController = FluxImageController_1 = class FluxImageController {
-    constructor(fluxImageService, promoImageService) {
+    constructor(fluxImageService, promoImageService, fluxKontextService, flux2ProService) {
         this.fluxImageService = fluxImageService;
         this.promoImageService = promoImageService;
+        this.fluxKontextService = fluxKontextService;
+        this.flux2ProService = flux2ProService;
         this.logger = new common_1.Logger(FluxImageController_1.name);
     }
     async generateFluxImage(dto, req) {
@@ -49,9 +53,51 @@ let FluxImageController = FluxImageController_1 = class FluxImageController {
     }
     async generateDual(dto, req) {
         const userId = req.user?.id || 'anon';
-        const promoResult = await this.promoImageService.generateAndNotify(userId, { prompt: dto.prompt, useFlux: false });
-        const fluxUrl = await this.fluxImageService.generateFromPromoDto(dto);
-        return { promo: promoResult.imageUrl, flux: fluxUrl };
+        try {
+            this.logger.log(`🎭 Generating DUAL images for user ${userId}: DALL-E + FLUX Kontext Pro`);
+            const promoResult = await this.promoImageService.generateAndNotify(userId, {
+                prompt: dto.prompt,
+                useFlux: false
+            });
+            const fluxKontextDto = {
+                prompt: dto.prompt || '',
+                plan: dto.plan || 'FREE',
+                isJsonPrompt: false,
+                size: '1024x1024'
+            };
+            const fluxKontextResult = await this.fluxKontextService.generateImage(fluxKontextDto);
+            this.logger.log(`✅ Dual images generated successfully - DALL-E: ${promoResult.imageUrl}, FLUX Kontext: ${fluxKontextResult.imageUrl}`);
+            return {
+                promo: promoResult.imageUrl,
+                flux: fluxKontextResult.imageUrl
+            };
+        }
+        catch (error) {
+            this.logger.error(`❌ Error generating dual images for user ${userId}:`, error);
+            throw new common_1.HttpException(`Error generating dual images: ${error.message || error}`, common_1.HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+    async generateSimple(dto, req) {
+        const userId = req.user?.id || 'anon';
+        try {
+            this.logger.log(`🚀 Generating simple FLUX 2 Pro image for user ${userId} with prompt: ${dto.prompt}`);
+            const result = await this.flux2ProService.generateImageAndNotify(userId, dto);
+            this.logger.log(`✅ FLUX 2 Pro image generated successfully for user ${userId}`);
+            return {
+                success: true,
+                message: '✅ FLUX 2 Pro image generated successfully',
+                data: {
+                    imageUrl: result.imageUrl,
+                    filename: result.filename,
+                    userId,
+                    prompt: result.prompt
+                }
+            };
+        }
+        catch (error) {
+            this.logger.error(`❌ Error generating FLUX 2 Pro image for user ${userId}:`, error);
+            throw new common_1.HttpException(`Error generating FLUX 2 Pro image: ${error.message || error}`, common_1.HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 };
 exports.FluxImageController = FluxImageController;
@@ -71,9 +117,19 @@ __decorate([
     __metadata("design:paramtypes", [generate_promo_image_dto_1.GeneratePromoImageDto, Object]),
     __metadata("design:returntype", Promise)
 ], FluxImageController.prototype, "generateDual", null);
+__decorate([
+    (0, common_1.Post)('/simple'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Req)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [generate_flux_image_dto_1.GenerateFluxImageDto, Object]),
+    __metadata("design:returntype", Promise)
+], FluxImageController.prototype, "generateSimple", null);
 exports.FluxImageController = FluxImageController = FluxImageController_1 = __decorate([
     (0, common_1.Controller)('media/flux-image'),
     __metadata("design:paramtypes", [flux_image_service_1.FluxImageService,
-        promo_image_service_1.PromoImageService])
+        promo_image_service_1.PromoImageService,
+        flux_kontext_image_service_1.FluxKontextImageService,
+        flux_2_pro_service_1.Flux2ProService])
 ], FluxImageController);
 //# sourceMappingURL=flux-image.controller.js.map

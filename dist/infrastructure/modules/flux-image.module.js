@@ -9,9 +9,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.FluxImageModule = void 0;
 const common_1 = require("@nestjs/common");
 const flux_image_service_1 = require("../services/flux-image.service");
+const flux_kontext_image_service_1 = require("../services/flux-kontext-image.service");
+const flux_2_pro_service_1 = require("../services/flux-2-pro.service");
 const azure_blob_service_1 = require("../services/azure-blob.service");
 const llm_service_1 = require("../services/llm.service");
 const flux_image_controller_1 = require("../../interfaces/controllers/flux-image.controller");
+const flux_kontext_image_controller_1 = require("../../interfaces/controllers/flux-kontext-image.controller");
 const promo_image_module_1 = require("./promo-image.module");
 let FluxImageModule = class FluxImageModule {
 };
@@ -19,9 +22,18 @@ exports.FluxImageModule = FluxImageModule;
 exports.FluxImageModule = FluxImageModule = __decorate([
     (0, common_1.Module)({
         imports: [(0, common_1.forwardRef)(() => promo_image_module_1.PromoImageModule)],
-        controllers: [flux_image_controller_1.FluxImageController],
-        providers: [flux_image_service_1.FluxImageService, azure_blob_service_1.AzureBlobService, llm_service_1.LLMService],
-        exports: [flux_image_service_1.FluxImageService],
+        controllers: [
+            flux_image_controller_1.FluxImageController,
+            flux_kontext_image_controller_1.FluxKontextImageController,
+        ],
+        providers: [
+            flux_image_service_1.FluxImageService,
+            flux_kontext_image_service_1.FluxKontextImageService,
+            flux_2_pro_service_1.Flux2ProService,
+            azure_blob_service_1.AzureBlobService,
+            llm_service_1.LLMService
+        ],
+        exports: [flux_image_service_1.FluxImageService, flux_kontext_image_service_1.FluxKontextImageService, flux_2_pro_service_1.Flux2ProService],
     })
 ], FluxImageModule);
 //# sourceMappingURL=flux-image.module.js.map

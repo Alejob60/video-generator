@@ -49,11 +49,10 @@ const openai_1 = require("openai");
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const azure_blob_service_1 = require("./azure-blob.service");
-const flux_image_service_1 = require("./flux-image.service");
+const llm_service_1 = require("./llm.service");
 let PromoImageService = PromoImageService_1 = class PromoImageService {
-    constructor(azureBlobService, fluxImageService) {
+    constructor(azureBlobService) {
         this.azureBlobService = azureBlobService;
-        this.fluxImageService = fluxImageService;
         this.logger = new common_1.Logger(PromoImageService_1.name);
         this.endpoint = process.env.AZURE_OPENAI_IMAGE_ENDPOINT;
         this.deployment = process.env.AZURE_OPENAI_IMAGE_DEPLOYMENT;
@@ -73,7 +72,8 @@ let PromoImageService = PromoImageService_1 = class PromoImageService {
         }
         if (prompt && isJsonPrompt) {
             try {
-                finalPrompt = await this.fluxImageService['llmService'].improveImagePrompt(prompt);
+                const llmService = new llm_service_1.LLMService();
+                finalPrompt = await llmService.improveImagePrompt(prompt);
                 this.logger.log(`📋 Converted JSON prompt to natural language with LLM: ${finalPrompt}`);
             }
             catch (error) {
@@ -86,25 +86,12 @@ let PromoImageService = PromoImageService_1 = class PromoImageService {
         }
         let azureUrl;
         let localFilename;
-        if (useFlux && finalPrompt) {
-            this.logger.log(`🤖 Usando FLUX-1.1-pro para generar imagen para usuario ${userId}`);
-            const fluxDto = {
-                prompt: finalPrompt,
-                plan: 'FREE',
-                isJsonPrompt: false
-            };
-            const fluxResult = await this.fluxImageService.generateImage(fluxDto);
-            azureUrl = fluxResult.imageUrl;
-            localFilename = fluxResult.filename;
-        }
-        else {
-            this.logger.log(`🤖 Usando DALL·E para generar imagen para usuario ${userId}`);
-            const result = await this.generateImageWithText({
-                prompt: finalPrompt,
-            });
-            azureUrl = result.azureUrl;
-            localFilename = result.localFilename;
-        }
+        this.logger.log(`🤖 Usando DALL·E para generar imagen para usuario ${userId}`);
+        const result = await this.generateImageWithText({
+            prompt: finalPrompt,
+        });
+        azureUrl = result.azureUrl;
+        localFilename = result.localFilename;
         await fetch(`${this.backendUrl}/promo-image/complete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -192,7 +179,6 @@ let PromoImageService = PromoImageService_1 = class PromoImageService {
 exports.PromoImageService = PromoImageService;
 exports.PromoImageService = PromoImageService = PromoImageService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [azure_blob_service_1.AzureBlobService,
-        flux_image_service_1.FluxImageService])
+    __metadata("design:paramtypes", [azure_blob_service_1.AzureBlobService])
 ], PromoImageService);
 //# sourceMappingURL=promo-image.service.js.map
