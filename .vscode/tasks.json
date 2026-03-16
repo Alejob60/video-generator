@@ -9,17 +9,7 @@
 			"isBackground": true,
 			"dependsOn": "npm watch (functions)"
 		},
-		{
-			"type": "shell",
-			"label": "npm build (functions)",
-			"command": "npm run build",
-			"dependsOn": "npm install (functions)",
-			"problemMatcher": "$tsc",
-			"group": {
-				"kind": "build",
-				"isDefault": true
-			}
-		},
+		9,
 		{
 			"type": "shell",
 			"label": "npm watch (functions)",

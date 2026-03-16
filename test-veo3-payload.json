@@ -1,0 +1,13 @@
+{
+  "instances": [
+    {
+      "prompt": "A cinematic drone shot of a futuristic city at sunset, flying through skyscrapers with neon lights, photorealistic, 4K quality"
+    }
+  ],
+  "parameters": {
+    "videoLength": 5,
+    "fps": 24,
+    "negativePrompt": "blurry, low quality, distorted",
+    "aspectRatio": "16:9"
+  }
+}
