@@ -207,8 +207,10 @@ Agregar estas variables:
 VERTEX_API_KEY=AQ.Ab8RN6LuAtNfSN2NXv8cn0zsclWio1xDmtux_w0Wql3yZzvD3w
 VERTEX_PROJECT_ID=orbital-prime-vision
 VERTEX_LOCATION=us-central1
-VEO3_MODEL=veo-3.1-generate-001
+VEO3_MODEL=veo-001  # Stable model name (NOT veo-3.1-generate-001)
 ```
+
+**⚠️ IMPORTANTE:** El nombre correcto del modelo es `veo-001`, no `veo-3.1-generate-001`.
 
 ---
 

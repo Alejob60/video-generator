@@ -19,7 +19,7 @@ export class VeoVideoService {
   private readonly apiKey = process.env.VERTEX_API_KEY || '';
   private readonly projectId = process.env.VERTEX_PROJECT_ID || 'orbital-prime-vision';
   private readonly location = process.env.VERTEX_LOCATION || 'us-central1';
-  private readonly model = process.env.VEO3_MODEL || 'veo-3.1-generate-001';
+  private readonly model = process.env.VEO3_MODEL || 'veo-001';
   private readonly backendUrl = process.env.MAIN_BACKEND_URL!;
 
   constructor(
@@ -96,10 +96,11 @@ export class VeoVideoService {
 
   /**
    * Call Vertex AI VEO3 API using predictLongRunning endpoint
+   * Correct URL format: https://us-central1-aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/publishers/google/models/{model}:predictLongRunning
    */
   private async callVeoApi(dto: GenerateVeoVideoDto): Promise<any> {
     // Use predictLongRunning endpoint for asynchronous video generation
-    const endpoint = `https://aiplatform.googleapis.com/v1/projects/${this.projectId}/locations/${this.location}/publishers/google/models/${this.model}:predictLongRunning`;
+    const endpoint = `https://us-central1-aiplatform.googleapis.com/v1/projects/${this.projectId}/locations/${this.location}/publishers/google/models/${this.model}:predictLongRunning`;
     
     const payload = {
       instances: [
@@ -116,6 +117,7 @@ export class VeoVideoService {
     };
     
     this.logger.log(`📡 Sending request to VEO3 LongRunning API: ${endpoint}`);
+    this.logger.log(`Model: ${this.model}`);
     this.logger.log(`Payload: ${JSON.stringify(payload, null, 2)}`);
     
     const response = await axios.post(endpoint, payload, {
