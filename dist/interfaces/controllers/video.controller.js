@@ -58,16 +58,20 @@ let VideoController = VideoController_1 = class VideoController {
                 fps: 24,
                 negativePrompt: 'blurry, low quality, distorted',
             };
-            const queueResult = await this.veoService.queueVideoGeneration(userId, veoDto, {
-                useVoice: dto.useVoice,
-                useSubtitles: dto.useSubtitles,
-                useMusic: dto.useMusic,
-            });
-            result.videoUrl = '';
-            result.fileName = '';
-            result.jobId = queueResult.jobId;
-            result.status = queueResult.status;
-            result.processingMessage = 'Video en proceso de generación. Se notificará al backend principal cuando esté listo.';
+            const veoResponse = await this.veoService.generateVideo(veoDto);
+            const { videoUrl, filename } = veoResponse;
+            if (!videoUrl || !filename) {
+                this.logger.warn('⚠️ Respuesta incompleta de VEO3');
+                result.error = 'Video no generado correctamente.';
+                return {
+                    success: false,
+                    message: 'Fallo en la generación del video',
+                    result,
+                };
+            }
+            result.videoUrl = videoUrl;
+            result.fileName = filename;
+            result.jobId = filename;
             if (dto.useVoice) {
                 try {
                     this.logger.log('🎤 Generando narración TTS...');
@@ -84,10 +88,10 @@ let VideoController = VideoController_1 = class VideoController {
                 result.subtitles = 'pendiente';
             if (dto.useMusic)
                 result.music = 'pendiente';
-            this.logger.log(`✅ Video queued correctly - Job ID: ${queueResult.jobId}`);
+            this.logger.log('✅ Video generado correctamente');
             return {
                 success: true,
-                message: 'Video encolado para procesamiento. La generación tomará 5-15 minutos.',
+                message: 'Medios generados exitosamente',
                 result,
             };
         }
