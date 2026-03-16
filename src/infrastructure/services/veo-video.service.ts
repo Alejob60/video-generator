@@ -12,6 +12,13 @@ export interface GenerateVeoVideoDto {
   negativePrompt?: string;
 }
 
+/**
+ * Helper function to decode base64 encoded media content string to bytes
+ */
+function b64decode(b64EncodedString: string): Buffer {
+  return Buffer.from(b64EncodedString, 'base64');
+}
+
 @Injectable()
 export class VeoVideoService {
   private readonly logger = new Logger(VeoVideoService.name);
@@ -118,23 +125,41 @@ export class VeoVideoService {
 
   /**
    * Call Vertex AI VEO3 API using Google GenAI SDK
+   * Modeled after Python example from official documentation
    */
   private async callVeoApiWithSdk(dto: GenerateVeoVideoDto): Promise<any> {
     try {
       this.logger.log(`📡 Sending request to VEO3 via Google GenAI SDK`);
       this.logger.log(`Model: ${this.model}`);
       
-      // Use the SDK's generate_videos method
+      // Import types dynamically (similar to Python's from google.genai import types)
+      const genai = require('@google/genai');
+      const types = genai.types || genai;
+      
+      // Create source object (similar to Python's types.GenerateVideosSource)
+      const source = {
+        prompt: dto.prompt,
+      };
+      
+      // Create config object (similar to Python's types.GenerateVideosConfig)
+      const config = {
+        aspectRatio: dto.aspectRatio || '16:9',
+        number_of_videos: 1, // Default to 1 video
+        duration_seconds: dto.videoLength || 5,
+        person_generation: 'allow_all',
+        generate_audio: false,
+        resolution: '720p',
+        seed: 0,
+      };
+      
+      this.logger.log(`📋 Source: ${JSON.stringify(source)}`);
+      this.logger.log(`📋 Config: ${JSON.stringify(config)}`);
+      
+      // Generate the video generation request (similar to Python's client.models.generate_videos)
       const operation = await this.client.models.generateVideos(
         this.model,
-        {
-          prompt: dto.prompt,
-        },
-        {
-          aspectRatio: dto.aspectRatio || '16:9',
-          videoLength: dto.videoLength || 5,
-          fps: dto.fps || 24,
-        }
+        source,
+        config
       );
       
       this.logger.log(`📥 VEO3 SDK Response - Operation: ${operation.name}`);
@@ -142,7 +167,7 @@ export class VeoVideoService {
       return operation;
       
     } catch (error: any) {
-      this.logger.error(`❌ VEO3 SDK error: ${error.message}`);
+      this.logger.error(`❌ VEO3 SDK error: ${error.message}`, error.stack);
       throw error;
     }
   }
@@ -269,8 +294,9 @@ export class VeoVideoService {
     let videoBytes: Buffer;
     
     if (generatedVideo.video?.bytes) {
-      // Direct base64 bytes
-      videoBytes = Buffer.from(generatedVideo.video.bytes, 'base64');
+      // Direct base64 bytes - use b64decode helper function
+      this.logger.log('📊 Using direct base64 bytes format');
+      videoBytes = b64decode(generatedVideo.video.bytes);
     } else if (generatedVideo.video?.uri) {
       // Video URI - need to download
       throw new Error('Video URI format not yet implemented. Requires GCS download.');

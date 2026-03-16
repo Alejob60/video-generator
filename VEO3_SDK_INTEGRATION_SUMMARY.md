@@ -4,6 +4,168 @@
 
 Implemented official Google GenAI SDK (`@google/genai`) to properly handle VEO3 video generation operations.
 
+**Modeled after official Python example from Google documentation.**
+
+---
+
+## 📋 **Python Reference Code:**
+
+```python
+import time
+import sys
+from google import genai
+from google.genai import types
+
+client = genai.Client(
+    project="orbital-prime-vision",
+    location="us-central1",
+)
+
+source = types.GenerateVideosSource(
+    prompt="""The camera dollies to show a close up of a desperate man...""",
+)
+
+config = types.GenerateVideosConfig(
+    aspect_ratio="16:9",
+    number_of_videos=4,
+    duration_seconds=8,
+    person_generation="allow_all",
+    generate_audio=False,
+    resolution="720p",
+    seed=0,
+)
+
+# Generate the video generation request
+operation = client.models.generate_videos(
+    model="veo-3.1-generate-001", source=source, config=config
+)
+
+# Waiting for the video(s) to be generated
+while not operation.done:
+    print("Video has not been generated yet. Check again in 10 seconds...")
+    time.sleep(10)
+    operation = client.operations.get(operation)
+
+response = operation.result
+if not response:
+    print("Error occurred while generating video.")
+    sys.exit(1)
+
+generated_videos = response.generated_videos
+if not generated_videos:
+    print("No videos were generated.")
+    sys.exit(1)
+
+print(f"Generated {len(generated_videos)} video(s).")
+for generated_video in generated_videos:
+    if generated_video.video:
+        generated_video.video.show()
+```
+
+---
+
+## 🔧 **NestJS TypeScript Implementation:**
+
+### **Helper Function (b64decode):**
+```typescript
+/**
+ * Helper function to decode base64 encoded media content string to bytes
+ */
+function b64decode(b64EncodedString: string): Buffer {
+  return Buffer.from(b64EncodedString, 'base64');
+}
+```
+
+### **Service Implementation:**
+```typescript
+@Injectable()
+export class VeoVideoService {
+  private readonly logger = new Logger(VeoVideoService.name);
+  private client: any; // Google GenAI client
+
+  constructor(private readonly azureBlobService: AzureBlobService) {
+    // Initialize Google GenAI client
+    const { genai } = require('@google/genai');
+    this.client = new genai.Client({
+      project: this.projectId,
+      location: this.location,
+      apiKey: this.apiKey,
+    });
+  }
+
+  /**
+   * Call Vertex AI VEO3 API using Google GenAI SDK
+   * Modeled after Python example from official documentation
+   */
+  private async callVeoApiWithSdk(dto: GenerateVeoVideoDto): Promise<any> {
+    // Import types dynamically (similar to Python's from google.genai import types)
+    const genai = require('@google/genai');
+    const types = genai.types || genai;
+    
+    // Create source object (similar to Python's types.GenerateVideosSource)
+    const source = {
+      prompt: dto.prompt,
+    };
+    
+    // Create config object (similar to Python's types.GenerateVideosConfig)
+    const config = {
+      aspectRatio: dto.aspectRatio || '16:9',
+      number_of_videos: 1,
+      duration_seconds: dto.videoLength || 5,
+      person_generation: 'allow_all',
+      generate_audio: false,
+      resolution: '720p',
+      seed: 0,
+    };
+    
+    // Generate the video generation request
+    const operation = await this.client.models.generateVideos(
+      this.model,
+      source,
+      config
+    );
+    
+    return operation;
+  }
+
+  /**
+   * Poll for operation completion
+   */
+  private async pollForCompletion(operation: any): Promise<any> {
+    let attempts = 0;
+    const maxAttempts = 90; // 15 minutes
+    const pollInterval = 10000; // 10 seconds
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      
+      // Use SDK's operations.get (similar to Python's client.operations.get)
+      const result = await this.client.operations.get(operation.name);
+      
+      if (result.done) {
+        return result;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+    
+    throw new Error('Timeout');
+  }
+
+  /**
+   * Extract video bytes from response
+   */
+  private extractVideoData(result: any): Buffer {
+    const generatedVideo = result.response.generatedVideos[0];
+    
+    // Use b64decode helper function (similar to Python's base64.b64decode)
+    const videoBytes = b64decode(generatedVideo.video.bytes);
+    
+    return videoBytes;
+  }
+}
+```
+
 ---
 
 ## 🔧 **What Changed:**
