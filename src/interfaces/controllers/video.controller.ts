@@ -9,7 +9,7 @@ import {
   Get,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { SoraVideoClientService } from '../../infrastructure/services/sora-video-client.service';
+import { VeoVideoService } from '../../infrastructure/services/veo-video.service';
 import { AzureTTSService } from '../../infrastructure/services/azure-tts.service';
 import { AzureBlobService } from '../../infrastructure/services/azure-blob.service';
 import { GenerateVideoDto } from '../dto/generate-video.dto';
@@ -19,7 +19,7 @@ export class VideoController {
   private readonly logger = new Logger(VideoController.name);
 
   constructor(
-    private readonly soraClient: SoraVideoClientService,
+    private readonly veoService: VeoVideoService,
     private readonly ttsService: AzureTTSService,
     private readonly azureBlobService: AzureBlobService,
   ) {}
@@ -28,7 +28,7 @@ export class VideoController {
   checkHealth() {
     return {
       status: 'ok',
-      sora: this.soraClient.isHealthy(),
+      veo: true, // VEO3 is available through Google Vertex AI
       timestamp: new Date(),
     };
   }
@@ -56,25 +56,23 @@ export class VideoController {
     try {
       this.logger.log(`🎬 [${userId}] Iniciando generación con duración=${duration}s y plan=${plan}`);
 
-      // 🔄 Check disponibilidad de Sora
-      const soraDisponible = await this.soraClient.isHealthy();
-      if (!soraDisponible) {
-        this.logger.warn('🚫 Sora no disponible');
-        result.error = 'Sora offline';
-        return {
-          success: false,
-          message: 'Sora offline',
-          result,
-        };
-      }
+      // 🎥 Generar video con VEO3 (Google Vertex AI)
+      this.logger.debug(`📤 Enviando solicitud a VEO3 con payload: ${JSON.stringify({ prompt: dto.prompt, duration, plan })}`);
+      
+      // Convertir DTO a formato VEO3
+      const veoDto = {
+        prompt: typeof dto.prompt === 'string' ? dto.prompt : JSON.stringify(dto.prompt),
+        videoLength: Math.min(duration, 60), // VEO3 max 60 seconds
+        aspectRatio: '16:9' as const,
+        fps: 24,
+        negativePrompt: 'blurry, low quality, distorted',
+      };
+      
+      const veoResponse = await this.veoService.generateVideoAndNotify(userId, veoDto);
+      const { videoUrl, filename } = veoResponse;
 
-      // 📤 Enviar a Sora (usando prompt directamente sin mejora)
-      this.logger.debug(`📤 Enviando solicitud a Sora con payload: ${JSON.stringify({ prompt: dto.prompt, duration, plan })}`);
-      const soraResponse = await this.soraClient.requestVideo(JSON.stringify(dto.prompt), duration);
-      const { video_url, job_id, generation_id, file_name } = soraResponse;
-
-      if (!video_url || !file_name) {
-        this.logger.warn('⚠️ Respuesta incompleta de Sora');
+      if (!videoUrl || !filename) {
+        this.logger.warn('⚠️ Respuesta incompleta de VEO3');
         result.error = 'Video no generado correctamente.';
         return {
           success: false,
@@ -83,16 +81,15 @@ export class VideoController {
         };
       }
 
-      result.videoUrl = video_url;
-      result.fileName = file_name;
-      result.soraJobId = job_id;
-      result.generationId = generation_id;
+      result.videoUrl = videoUrl;
+      result.fileName = filename;
+      result.veoJobId = filename; // Usar filename como job ID para tracking
 
       // 🎙️ Narración (opcional)
       if (dto.useVoice) {
         try {
           this.logger.log('🎤 Generando narración TTS...');
-          const audioResult = await this.ttsService.generateAudioFromPrompt(JSON.stringify(dto.prompt));
+          const audioResult = await this.ttsService.generateAudioFromPrompt(typeof dto.prompt === 'string' ? dto.prompt : JSON.stringify(dto.prompt));
           result.audioUrl = audioResult.blobUrl;
           result.script = audioResult.script;
         } catch (err) {
