@@ -56,7 +56,7 @@ export class VideoController {
     try {
       this.logger.log(`🎬 [${userId}] Iniciando generación con duración=${duration}s y plan=${plan}`);
 
-      // 🎥 Generar video con VEO3 (Google Vertex AI)
+      // 🎥 Generar video con VEO3 (Google Vertex AI) - Async con colas
       this.logger.debug(`📤 Enviando solicitud a VEO3 con payload: ${JSON.stringify({ prompt: dto.prompt, duration, plan })}`);
       
       // Convertir DTO a formato VEO3
@@ -68,24 +68,24 @@ export class VideoController {
         negativePrompt: 'blurry, low quality, distorted',
       };
       
-      const veoResponse = await this.veoService.generateVideoAndNotify(userId, veoDto);
-      const { videoUrl, filename } = veoResponse;
+      // Queue video for async processing (returns immediately)
+      const queueResult = await this.veoService.queueVideoGeneration(
+        userId, 
+        veoDto,
+        {
+          useVoice: dto.useVoice,
+          useSubtitles: dto.useSubtitles,
+          useMusic: dto.useMusic,
+        }
+      );
+      
+      result.videoUrl = ''; // Will be available when processing completes
+      result.fileName = '';
+      result.jobId = queueResult.jobId;
+      result.status = queueResult.status;
+      result.processingMessage = 'Video en proceso de generación. Se notificará al backend principal cuando esté listo.';
 
-      if (!videoUrl || !filename) {
-        this.logger.warn('⚠️ Respuesta incompleta de VEO3');
-        result.error = 'Video no generado correctamente.';
-        return {
-          success: false,
-          message: 'Fallo en la generación del video',
-          result,
-        };
-      }
-
-      result.videoUrl = videoUrl;
-      result.fileName = filename;
-      result.veoJobId = filename; // Usar filename como job ID para tracking
-
-      // 🎙️ Narración (opcional)
+      // 🎙️ Narración (opcional) - Can be done immediately or queued
       if (dto.useVoice) {
         try {
           this.logger.log('🎤 Generando narración TTS...');
@@ -102,10 +102,10 @@ export class VideoController {
       if (dto.useSubtitles) result.subtitles = 'pendiente';
       if (dto.useMusic) result.music = 'pendiente';
 
-      this.logger.log('✅ Video generado correctamente');
+      this.logger.log(`✅ Video queued correctly - Job ID: ${queueResult.jobId}`);
       return {
         success: true,
-        message: 'Medios generados exitosamente',
+        message: 'Video encolado para procesamiento. La generación tomará 5-15 minutos.',
         result,
       };
 

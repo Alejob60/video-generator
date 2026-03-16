@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
+import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { AzureBlobService } from './azure-blob.service';
+import { ServiceBusClient } from '@azure/service-bus';
 
 export interface GenerateVeoVideoDto {
   prompt: string;
@@ -27,7 +29,10 @@ export class VeoVideoService {
   private readonly location = process.env.VERTEX_LOCATION || 'us-central1';
   private readonly model = process.env.VEO3_MODEL || 'veo-3.1-generate-001'; // ✅ Confirmed working model
   private readonly backendUrl = process.env.MAIN_BACKEND_URL!;
+  private readonly serviceBusConnection = process.env.AZURE_SERVICE_BUS_CONNECTION!;
+  private readonly serviceBusQueue = process.env.AZURE_SERVICE_BUS_QUEUE || 'video';
   private client: any; // Google GenAI client
+  private sbClient: ServiceBusClient | null = null;
 
   constructor(
     private readonly azureBlobService: AzureBlobService,
@@ -45,81 +50,63 @@ export class VeoVideoService {
       this.logger.warn(`⚠️ Google GenAI SDK not fully configured: ${error.message}`);
       this.logger.warn('📝 Will use fallback REST API method');
     }
+
+    // Initialize Service Bus client for async processing
+    if (this.serviceBusConnection) {
+      this.sbClient = new ServiceBusClient(this.serviceBusConnection);
+      this.logger.log('✅ Service Bus client initialized');
+    } else {
+      this.logger.warn('⚠️ Service Bus connection not configured - will process synchronously');
+    }
   }
 
   /**
-   * Generate video using Google VEO3 and notify backend
+   * Queue video generation request for async processing (like Sora)
+   * Returns immediately with job ID - actual generation happens in background
    */
-  async generateVideoAndNotify(
+  async queueVideoGeneration(
     userId: string,
     dto: GenerateVeoVideoDto,
-  ): Promise<{ videoUrl: string; filename: string; prompt: string }> {
-    this.logger.log(`🎬 Starting VEO3 video generation for user: ${userId}`);
-    this.logger.log(`📝 Prompt: ${dto.prompt.substring(0, 100)}...`);
-
+    options?: { useVoice?: boolean; useSubtitles?: boolean; useMusic?: boolean }
+  ): Promise<{ jobId: string; status: string }> {
+    this.logger.log(`🎬 [${userId}] Queueing VEO3 video generation`);
+    
+    const jobId = uuidv4();
+    
     try {
-      let operation;
-      
-      // Try using Google GenAI SDK first
-      if (this.client) {
-        this.logger.log('🔧 Using Google GenAI SDK');
-        operation = await this.callVeoApiWithSdk(dto);
-      } else {
-        this.logger.log('🔧 Using REST API fallback');
-        operation = await this.callVeoApi(dto);
+      // Send message to Service Bus queue
+      if (!this.sbClient) {
+        throw new Error('Service Bus client not initialized');
       }
+
+      const sender = this.sbClient.createSender(this.serviceBusQueue);
       
-      // Poll for completion
-      const result = await this.pollForCompletion(operation);
-      
-      // Extract video data
-      const videoBytes = this.extractVideoData(result);
-      
-      // Upload to Azure Blob Storage
-      const filename = `veo-video-${Date.now()}.mp4`;
-      const tempPath = path.join(__dirname, '..', '..', '..', 'temp', filename);
-      
-      // Ensure temp directory exists
-      const tempDir = path.dirname(tempPath);
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
-      
-      // Save video temporarily
-      fs.writeFileSync(tempPath, videoBytes);
-      this.logger.log(`💾 Saved video to temp: ${tempPath} (${videoBytes.length} bytes)`);
-      
-      // Upload to Azure Blob with SAS
-      const blobUrl = await this.azureBlobService.uploadFileToBlobWithSas(
-        tempPath,
-        `videos/${filename}`,
-        'video/mp4',
-      );
-      
-      this.logger.log(`✅ Video uploaded to Azure Blob Storage: ${blobUrl}`);
-      
-      // Step 5: Notify main backend
-      this.logger.log(`🔔 Notifying main backend about generated video`);
-      await fetch(`${this.backendUrl}/veo-video/complete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const message = {
+        body: {
+          jobId,
           userId,
+          type: 'veo3-video-generation',
           prompt: dto.prompt,
-          videoUrl: blobUrl,
-          filename,
-        }),
-      });
+          duration: dto.videoLength || 5,
+          plan: 'pro', // Default plan
+          options: options || {},
+          timestamp: Date.now(),
+        },
+      };
+
+      await sender.sendMessages(message);
+      await sender.close();
+
+      this.logger.log(`✅ Video generation queued - Job ID: ${jobId}`);
       
       return {
-        videoUrl: blobUrl,
-        filename,
-        prompt: dto.prompt,
+        jobId,
+        status: 'queued',
       };
-      
+
     } catch (error: any) {
-      this.logger.error(`❌ Error generating video with VEO3: ${error.message}`, error.stack);
-      throw new Error(`VEO3 video generation failed: ${error.message}`);
+      this.logger.error(`❌ Error queuing video: ${error.message}`, error.stack);
+      throw error;
     }
   }
 
@@ -310,13 +297,31 @@ export class VeoVideoService {
   }
 
   /**
-   * Generate video without notification (for internal use)
+   * Generate video without queue (for internal/sync use only)
    */
   async generateVideo(dto: GenerateVeoVideoDto): Promise<{ videoUrl: string; filename: string }> {
-    const result = await this.generateVideoAndNotify('internal', dto);
+    // This is for synchronous generation - not recommended for production
+    const operation = await this.callVeoApiWithSdk(dto);
+    const result = await this.pollForCompletion(operation);
+    const videoBytes = this.extractVideoData(result);
+    
+    const filename = `veo-video-${Date.now()}.mp4`;
+    const tempPath = path.join(__dirname, '..', '..', '..', 'temp', filename);
+    const tempDir = path.dirname(tempPath);
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    fs.writeFileSync(tempPath, videoBytes);
+    
+    const blobUrl = await this.azureBlobService.uploadFileToBlobWithSas(
+      tempPath,
+      `videos/${filename}`,
+      'video/mp4',
+    );
+    
     return {
-      videoUrl: result.videoUrl,
-      filename: result.filename,
+      videoUrl: blobUrl,
+      filename,
     };
   }
 }
