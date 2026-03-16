@@ -1,13 +1,9 @@
 {
-  "instances": [
-    {
-      "prompt": "A cinematic drone shot of a futuristic city at sunset, flying through skyscrapers with neon lights, photorealistic, 4K quality"
-    }
-  ],
-  "parameters": {
-    "videoLength": 5,
-    "fps": 24,
-    "negativePrompt": "blurry, low quality, distorted",
-    "aspectRatio": "16:9"
-  }
+  "prompt": "A cat playing with yarn in a cozy living room",
+  "n_seconds": 5,
+  "plan": "pro",
+  "useVoice": false,
+  "useSubtitles": false,
+  "useMusic": false,
+  "useSora": false
 }

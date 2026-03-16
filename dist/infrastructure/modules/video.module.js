@@ -13,7 +13,8 @@ const video_service_1 = require("../services/video.service");
 const service_bus_service_1 = require("../services/service-bus.service");
 const video_queue_consumer_service_1 = require("../services/video-queue-consumer.service");
 const promo_image_module_1 = require("./promo-image.module");
-const sora_module_1 = require("./sora.module");
+const veo_video_service_1 = require("../services/veo-video.service");
+const veo_video_queue_consumer_service_1 = require("../services/veo-video-queue-consumer.service");
 const video_controller_1 = require("../../interfaces/controllers/video.controller");
 const azure_blob_service_1 = require("../services/azure-blob.service");
 const azure_tts_service_1 = require("../services/azure-tts.service");
@@ -23,12 +24,14 @@ let VideoModule = class VideoModule {
 exports.VideoModule = VideoModule;
 exports.VideoModule = VideoModule = __decorate([
     (0, common_1.Module)({
-        imports: [config_1.ConfigModule, promo_image_module_1.PromoImageModule, sora_module_1.SoraModule],
+        imports: [config_1.ConfigModule, promo_image_module_1.PromoImageModule],
         controllers: [video_controller_1.VideoController],
         providers: [
             video_service_1.VideoService,
             service_bus_service_1.ServiceBusService,
             video_queue_consumer_service_1.VideoQueueConsumerService,
+            veo_video_service_1.VeoVideoService,
+            veo_video_queue_consumer_service_1.VeoVideoQueueConsumerService,
             azure_blob_service_1.AzureBlobService,
             azure_tts_service_1.AzureTTSService,
             llm_service_1.LLMService,
@@ -37,6 +40,7 @@ exports.VideoModule = VideoModule = __decorate([
             video_service_1.VideoService,
             service_bus_service_1.ServiceBusService,
             azure_blob_service_1.AzureBlobService,
+            veo_video_service_1.VeoVideoService,
         ],
     })
 ], VideoModule);

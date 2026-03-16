@@ -7,7 +7,7 @@ import { AzureTTSService } from './azure-tts.service';
 @Injectable()
 export class VeoVideoQueueConsumerService implements OnModuleInit {
   private readonly logger = new Logger(VeoVideoQueueConsumerService.name);
-  private sbClient: ServiceBusClient;
+  private sbClient: ServiceBusClient | null = null;
   private readonly serviceBusQueue: string;
   private readonly backendUrl: string;
 
@@ -42,12 +42,17 @@ export class VeoVideoQueueConsumerService implements OnModuleInit {
   }
 
   private async startProcessingMessages() {
+    if (!this.sbClient) {
+      this.logger.warn('⚠️ Service Bus client not available');
+      return;
+    }
+
     this.logger.log(`📡 Starting to process VEO3 messages from queue: ${this.serviceBusQueue}`);
     
     const receiver = this.sbClient.createReceiver(this.serviceBusQueue);
     
     // Process messages continuously
-    const messages = await receiver.receiveMessages(1, { maxWaitTimeInMilliseconds: 5000 });
+    const messages = await receiver.receiveMessages(1, { maxWaitTimeInMs: 5000 });
     
     for (const message of messages) {
       try {

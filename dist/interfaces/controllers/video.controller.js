@@ -15,13 +15,13 @@ var VideoController_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.VideoController = void 0;
 const common_1 = require("@nestjs/common");
-const sora_video_client_service_1 = require("../../infrastructure/services/sora-video-client.service");
+const veo_video_service_1 = require("../../infrastructure/services/veo-video.service");
 const azure_tts_service_1 = require("../../infrastructure/services/azure-tts.service");
 const azure_blob_service_1 = require("../../infrastructure/services/azure-blob.service");
 const generate_video_dto_1 = require("../dto/generate-video.dto");
 let VideoController = VideoController_1 = class VideoController {
-    constructor(soraClient, ttsService, azureBlobService) {
-        this.soraClient = soraClient;
+    constructor(veoService, ttsService, azureBlobService) {
+        this.veoService = veoService;
         this.ttsService = ttsService;
         this.azureBlobService = azureBlobService;
         this.logger = new common_1.Logger(VideoController_1.name);
@@ -29,7 +29,7 @@ let VideoController = VideoController_1 = class VideoController {
     checkHealth() {
         return {
             status: 'ok',
-            sora: this.soraClient.isHealthy(),
+            veo: true,
             timestamp: new Date(),
         };
     }
@@ -50,36 +50,28 @@ let VideoController = VideoController_1 = class VideoController {
         result.plan = plan;
         try {
             this.logger.log(`🎬 [${userId}] Iniciando generación con duración=${duration}s y plan=${plan}`);
-            const soraDisponible = await this.soraClient.isHealthy();
-            if (!soraDisponible) {
-                this.logger.warn('🚫 Sora no disponible');
-                result.error = 'Sora offline';
-                return {
-                    success: false,
-                    message: 'Sora offline',
-                    result,
-                };
-            }
-            this.logger.debug(`📤 Enviando solicitud a Sora con payload: ${JSON.stringify({ prompt: dto.prompt, duration, plan })}`);
-            const soraResponse = await this.soraClient.requestVideo(JSON.stringify(dto.prompt), duration);
-            const { video_url, job_id, generation_id, file_name } = soraResponse;
-            if (!video_url || !file_name) {
-                this.logger.warn('⚠️ Respuesta incompleta de Sora');
-                result.error = 'Video no generado correctamente.';
-                return {
-                    success: false,
-                    message: 'Fallo en la generación del video',
-                    result,
-                };
-            }
-            result.videoUrl = video_url;
-            result.fileName = file_name;
-            result.soraJobId = job_id;
-            result.generationId = generation_id;
+            this.logger.debug(`📤 Enviando solicitud a VEO3 con payload: ${JSON.stringify({ prompt: dto.prompt, duration, plan })}`);
+            const veoDto = {
+                prompt: typeof dto.prompt === 'string' ? dto.prompt : JSON.stringify(dto.prompt),
+                videoLength: Math.min(duration, 60),
+                aspectRatio: '16:9',
+                fps: 24,
+                negativePrompt: 'blurry, low quality, distorted',
+            };
+            const queueResult = await this.veoService.queueVideoGeneration(userId, veoDto, {
+                useVoice: dto.useVoice,
+                useSubtitles: dto.useSubtitles,
+                useMusic: dto.useMusic,
+            });
+            result.videoUrl = '';
+            result.fileName = '';
+            result.jobId = queueResult.jobId;
+            result.status = queueResult.status;
+            result.processingMessage = 'Video en proceso de generación. Se notificará al backend principal cuando esté listo.';
             if (dto.useVoice) {
                 try {
                     this.logger.log('🎤 Generando narración TTS...');
-                    const audioResult = await this.ttsService.generateAudioFromPrompt(JSON.stringify(dto.prompt));
+                    const audioResult = await this.ttsService.generateAudioFromPrompt(typeof dto.prompt === 'string' ? dto.prompt : JSON.stringify(dto.prompt));
                     result.audioUrl = audioResult.blobUrl;
                     result.script = audioResult.script;
                 }
@@ -92,10 +84,10 @@ let VideoController = VideoController_1 = class VideoController {
                 result.subtitles = 'pendiente';
             if (dto.useMusic)
                 result.music = 'pendiente';
-            this.logger.log('✅ Video generado correctamente');
+            this.logger.log(`✅ Video queued correctly - Job ID: ${queueResult.jobId}`);
             return {
                 success: true,
-                message: 'Medios generados exitosamente',
+                message: 'Video encolado para procesamiento. La generación tomará 5-15 minutos.',
                 result,
             };
         }
@@ -127,7 +119,7 @@ __decorate([
 ], VideoController.prototype, "generateVideo", null);
 exports.VideoController = VideoController = VideoController_1 = __decorate([
     (0, common_1.Controller)('videos'),
-    __metadata("design:paramtypes", [sora_video_client_service_1.SoraVideoClientService,
+    __metadata("design:paramtypes", [veo_video_service_1.VeoVideoService,
         azure_tts_service_1.AzureTTSService,
         azure_blob_service_1.AzureBlobService])
 ], VideoController);
