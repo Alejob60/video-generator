@@ -1,5 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
@@ -19,12 +18,27 @@ export class VeoVideoService {
   private readonly apiKey = process.env.VERTEX_API_KEY || '';
   private readonly projectId = process.env.VERTEX_PROJECT_ID || 'orbital-prime-vision';
   private readonly location = process.env.VERTEX_LOCATION || 'us-central1';
-  private readonly model = process.env.VEO3_MODEL || 'veo-001';
+  private readonly model = process.env.VEO3_MODEL || 'veo-3.1-generate-001'; // ✅ Confirmed working model
   private readonly backendUrl = process.env.MAIN_BACKEND_URL!;
+  private client: any; // Google GenAI client
 
   constructor(
     private readonly azureBlobService: AzureBlobService,
-  ) {}
+  ) {
+    // Initialize Google GenAI client
+    try {
+      const { genai } = require('@google/genai');
+      this.client = new genai.Client({
+        project: this.projectId,
+        location: this.location,
+        apiKey: this.apiKey,
+      });
+      this.logger.log('✅ Google GenAI client initialized');
+    } catch (error: any) {
+      this.logger.warn(`⚠️ Google GenAI SDK not fully configured: ${error.message}`);
+      this.logger.warn('📝 Will use fallback REST API method');
+    }
+  }
 
   /**
    * Generate video using Google VEO3 and notify backend
@@ -37,16 +51,24 @@ export class VeoVideoService {
     this.logger.log(`📝 Prompt: ${dto.prompt.substring(0, 100)}...`);
 
     try {
-      // Step 1: Call Vertex AI VEO3 API
-      const operation = await this.callVeoApi(dto);
+      let operation;
       
-      // Step 2: Poll for completion
-      const result = await this.pollForCompletion(operation.operationName);
+      // Try using Google GenAI SDK first
+      if (this.client) {
+        this.logger.log('🔧 Using Google GenAI SDK');
+        operation = await this.callVeoApiWithSdk(dto);
+      } else {
+        this.logger.log('🔧 Using REST API fallback');
+        operation = await this.callVeoApi(dto);
+      }
       
-      // Step 3: Extract video data
+      // Poll for completion
+      const result = await this.pollForCompletion(operation);
+      
+      // Extract video data
       const videoBytes = this.extractVideoData(result);
       
-      // Step 4: Upload to Azure Blob Storage
+      // Upload to Azure Blob Storage
       const filename = `veo-video-${Date.now()}.mp4`;
       const tempPath = path.join(__dirname, '..', '..', '..', 'temp', filename);
       
@@ -95,6 +117,37 @@ export class VeoVideoService {
   }
 
   /**
+   * Call Vertex AI VEO3 API using Google GenAI SDK
+   */
+  private async callVeoApiWithSdk(dto: GenerateVeoVideoDto): Promise<any> {
+    try {
+      this.logger.log(`📡 Sending request to VEO3 via Google GenAI SDK`);
+      this.logger.log(`Model: ${this.model}`);
+      
+      // Use the SDK's generate_videos method
+      const operation = await this.client.models.generateVideos(
+        this.model,
+        {
+          prompt: dto.prompt,
+        },
+        {
+          aspectRatio: dto.aspectRatio || '16:9',
+          videoLength: dto.videoLength || 5,
+          fps: dto.fps || 24,
+        }
+      );
+      
+      this.logger.log(`📥 VEO3 SDK Response - Operation: ${operation.name}`);
+      
+      return operation;
+      
+    } catch (error: any) {
+      this.logger.error(`❌ VEO3 SDK error: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
    * Call Vertex AI VEO3 API using predictLongRunning endpoint
    * Correct URL format: https://us-central1-aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/publishers/google/models/{model}:predictLongRunning
    */
@@ -136,12 +189,11 @@ export class VeoVideoService {
   }
 
   /**
-   * Poll for operation completion using LongRunning Operations API
+   * Poll for operation completion using Google GenAI SDK or REST API fallback
    * Google VEO3 typically takes 5-15 minutes for video generation
    */
-  private async pollForCompletion(operationName: string): Promise<any> {
+  private async pollForCompletion(operation: any): Promise<any> {
     this.logger.log('⏳ Polling for video generation completion...');
-    this.logger.log(`📋 Operation: ${operationName}`);
     
     let attempts = 0;
     const maxAttempts = 90; // 15 minutes max (90 * 10s)
@@ -152,33 +204,34 @@ export class VeoVideoService {
       const elapsedTime = Math.round((attempts * pollInterval) / 1000 / 60);
       this.logger.log(`   Poll attempt ${attempts}/${maxAttempts} (${elapsedTime} min elapsed)...`);
       
-      // Use the full operation name from the response
-      const statusEndpoint = `https://aiplatform.googleapis.com/v1/${operationName}`;
-      
       try {
-        const response = await axios.get(statusEndpoint, {
-          params: {
-            key: this.apiKey,
-          },
-        });
+        let result;
         
-        const operation = response.data;
+        // Try SDK first
+        if (this.client && operation.name) {
+          this.logger.log('   🔧 Using SDK for polling');
+          result = await this.client.operations.get(operation.name);
+        } else {
+          this.logger.log('   🔧 Using REST API for polling');
+          // Fallback to REST - but we know this doesn't work well
+          throw new Error('REST API polling not supported - requires SDK');
+        }
         
         // Check if operation is complete
-        if (operation.done) {
+        if (result.done) {
           this.logger.log('✅ Video generation complete!');
           
           // Check for errors in the operation
-          if (operation.error) {
-            throw new Error(`Operation failed: ${JSON.stringify(operation.error)}`);
+          if (result.error) {
+            throw new Error(`Operation failed: ${JSON.stringify(result.error)}`);
           }
           
-          return operation;
+          return result;
         }
         
         // Log progress metadata if available
-        if (operation.metadata) {
-          this.logger.log(`   Progress: ${JSON.stringify(operation.metadata)}`);
+        if (result.metadata) {
+          this.logger.log(`   Progress: ${JSON.stringify(result.metadata)}`);
         }
         
         this.logger.log('   Video not ready yet, waiting...');

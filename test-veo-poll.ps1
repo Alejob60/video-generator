@@ -6,11 +6,16 @@ Write-Host "=" * 60
 
 # Configuration
 $env:VERTEX_API_KEY = "AQ.Ab8RN6LuAtNfSN2NXv8cn0zsclWio1xDmtux_w0Wql3yZzvD3w"
+$env:PROJECT_ID = "orbital-prime-vision"
+$env:VERTEX_LOCATION = "us-central1"
 
 # Read operation name from file
 if (Test-Path "veo-operation-name.txt") {
-    $operationName = Get-Content "veo-operation-name.txt" -Raw
-    Write-Host "`n📋 Operation: $operationName" -ForegroundColor Cyan
+    $fullOperationName = Get-Content "veo-operation-name.txt" -Raw
+    # Remove any whitespace or newline characters
+    $fullOperationName = $fullOperationName.Trim()
+    
+    Write-Host "`n📋 Full Operation Name: $fullOperationName" -ForegroundColor Cyan
 } else {
     Write-Host "`n❌ Error: veo-operation-name.txt not found!" -ForegroundColor Red
     Write-Host "Run .\test-veo-init.ps1 first to start video generation." -ForegroundColor Yellow
@@ -18,8 +23,9 @@ if (Test-Path "veo-operation-name.txt") {
 }
 
 try {
-    # Check operation status
-    $statusUrl = "https://us-central1-aiplatform.googleapis.com/v1/${operationName}?key=${env:VERTEX_API_KEY}"
+    # Check operation status using the full operation name from init response
+    # For LongRunning operations, we need to use the exact format returned
+    $statusUrl = "https://us-central1-aiplatform.googleapis.com/v1/${fullOperationName}?key=${env:VERTEX_API_KEY}"
     
     Write-Host "`n🔗 Status URL:" -ForegroundColor Cyan
     Write-Host $statusUrl -ForegroundColor Gray

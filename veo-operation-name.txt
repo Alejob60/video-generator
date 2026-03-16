@@ -1,0 +1,1 @@
+projects/orbital-prime-vision/locations/us-central1/publishers/google/models/veo-3.1-generate-001/operations/987aad84-b0fc-4966-a334-a1a3f84c9d1c

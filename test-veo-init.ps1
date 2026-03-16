@@ -7,7 +7,7 @@ Write-Host "=" * 60
 # Configuration
 $env:VERTEX_API_KEY = "AQ.Ab8RN6LuAtNfSN2NXv8cn0zsclWio1xDmtux_w0Wql3yZzvD3w"
 $env:PROJECT_ID = "orbital-prime-vision"
-$MODEL = "veo-001"
+$MODEL = "veo-3.1-generate-001"  # ✅ Confirmed working model
 
 # Payload
 $body = @'
