@@ -55,7 +55,7 @@ export class AzureBlobService {
     } else if (blobPath.startsWith('audio/')) {
       this.logger.log(`📂 Routing path '${blobPath}' to audio container: ${this.defaultContainerName}`);
       return this.defaultContainerName;
-    } else if (blobPath.startsWith('video/')) {
+    } else if (blobPath.startsWith('videos/')) {  // ✅ FIXED: Changed from 'video/' to 'videos/'
       this.logger.log(`📂 Routing path '${blobPath}' to video container: ${this.videoContainerName}`);
       return this.videoContainerName;
     } else if (blobPath.startsWith('subtitles/')) {

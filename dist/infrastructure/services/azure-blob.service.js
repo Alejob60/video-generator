@@ -89,7 +89,7 @@ let AzureBlobService = AzureBlobService_1 = class AzureBlobService {
             this.logger.log(`📂 Routing path '${blobPath}' to audio container: ${this.defaultContainerName}`);
             return this.defaultContainerName;
         }
-        else if (blobPath.startsWith('video/')) {
+        else if (blobPath.startsWith('videos/')) {
             this.logger.log(`📂 Routing path '${blobPath}' to video container: ${this.videoContainerName}`);
             return this.videoContainerName;
         }
